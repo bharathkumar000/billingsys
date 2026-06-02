@@ -30,6 +30,7 @@ import {
   UtensilsCrossed,
   Bell,
   Eye,
+  Save,
 } from 'lucide-react';
 
 /* ===== TYPE DEFINITIONS ===== */
@@ -294,11 +295,7 @@ export default function VoiceBillingApp() {
     loadSessions(true);
   }, []);
 
-  useEffect(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.lang = listenerLanguage;
-    }
-  }, [listenerLanguage]);
+
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -320,7 +317,7 @@ export default function VoiceBillingApp() {
     const rec = new SpeechRecognition();
     rec.continuous = true;
     rec.interimResults = true;
-    rec.lang = listenerLanguage;
+    rec.lang = 'kn-IN';
 
     rec.onstart = () => {
       setIsVoiceRecording(true);
@@ -339,6 +336,14 @@ export default function VoiceBillingApp() {
         setVoiceTranscript(prev => (prev + ' ' + final).trim());
       }
       setVoiceInterim(interim);
+
+      const currentText = ((final ? voiceTranscript + ' ' + final : voiceTranscript) + ' ' + interim).trim();
+      const hasKannada = /[\u0C80-\u0CFF]/.test(currentText);
+      if (hasKannada) {
+        setListenerLanguage('kn-IN');
+      } else {
+        setListenerLanguage('en-IN');
+      }
     };
     rec.onerror = (err: any) => {
       console.warn('Voice Assistant Mic Error:', err);
@@ -565,9 +570,68 @@ export default function VoiceBillingApp() {
           extractedBuyGstin = data.extractedData.buyer_gstin;
           setSidebarOpen(true);
         }
+        const addedSummaries: string[] = [];
+        const updatedMetadata: string[] = [];
 
-        let responseMsg = '✅ Invoice updated successfully.';
-        if (data.note) responseMsg += ` (${data.note})`;
+        newItems.forEach((newItem: BillingItem) => {
+          const oldItem = items.find((i: BillingItem) => i.item_name_en === newItem.item_name_en);
+          const oldQty = oldItem ? oldItem.quantity : 0;
+          const diffQty = newItem.quantity - oldQty;
+          if (diffQty > 0) {
+            addedSummaries.push(`➕ ${diffQty} x ${newItem.item_name_en} (${newItem.item_name_kn})`);
+          }
+        });
+
+        items.forEach((oldItem: BillingItem) => {
+          const newItem = newItems.find((i: BillingItem) => i.item_name_en === oldItem.item_name_en);
+          if (!newItem) {
+            addedSummaries.push(`➖ Removed ${oldItem.item_name_en} (${oldItem.item_name_kn})`);
+          } else {
+            const diffQty = newItem.quantity - oldItem.quantity;
+            if (diffQty < 0) {
+              addedSummaries.push(`➖ Decreased ${Math.abs(diffQty)} x ${oldItem.item_name_en} (${oldItem.item_name_kn})`);
+            }
+          }
+        });
+
+        if (data.extractedData.customer_name) {
+          updatedMetadata.push(`👤 Customer Name: ${data.extractedData.customer_name}`);
+        }
+        if (data.extractedData.consignee_name && data.extractedData.consignee_name !== data.extractedData.customer_name) {
+          updatedMetadata.push(`🏢 Consignee Name: ${data.extractedData.consignee_name}`);
+        }
+        if (data.extractedData.consignee_address || data.extractedData.buyer_address) {
+          updatedMetadata.push(`📍 Address: ${data.extractedData.consignee_address || data.extractedData.buyer_address}`);
+        }
+        if (data.extractedData.destination) {
+          updatedMetadata.push(`🚚 Destination: ${data.extractedData.destination}`);
+        }
+        if (data.extractedData.consignee_gstin || data.extractedData.buyer_gstin) {
+          updatedMetadata.push(`💳 GSTIN: ${data.extractedData.consignee_gstin || data.extractedData.buyer_gstin}`);
+        }
+        if (data.extractedData.dispatched_through) {
+          updatedMetadata.push(`📦 Dispatched Through: ${data.extractedData.dispatched_through}`);
+        }
+        if (data.extractedData.terms_of_delivery) {
+          updatedMetadata.push(`📄 Terms of Delivery: ${data.extractedData.terms_of_delivery}`);
+        }
+        if (data.extractedData.invoice_date) {
+          updatedMetadata.push(`📅 Invoice Date: ${data.extractedData.invoice_date}`);
+        }
+
+        let responseMsg = '';
+        if (addedSummaries.length > 0) {
+          responseMsg += 'Added to bill:\n' + addedSummaries.join('\n') + '\n';
+        }
+        if (updatedMetadata.length > 0) {
+          responseMsg += (responseMsg ? '\n' : '') + 'Billing details updated:\n' + updatedMetadata.join('\n') + '\n';
+        }
+        if (!responseMsg) {
+          responseMsg = '✅ Invoice updated successfully.';
+        }
+        if (data.note) {
+          responseMsg += ` (${data.note})`;
+        }
         const finalLogs: ChatMessage[] = [...updatedLog, { role: 'assistant', text: responseMsg }];
         setChatLog(finalLogs);
 
@@ -686,6 +750,28 @@ export default function VoiceBillingApp() {
     saveSessionState(activeSessionId, activeSessionTitle, [], newLog);
     triggerNotification('Invoice items cleared');
     setShowClearConfirm(false);
+  };
+
+  const handleSaveSession = async () => {
+    if (items.length === 0) {
+      triggerNotification('Add items before saving the bill');
+      return;
+    }
+    setStatusMessage('LOADING');
+    try {
+      await saveSessionState(
+        activeSessionId,
+        activeSessionTitle,
+        items,
+        chatLog
+      );
+      triggerNotification('Invoice saved successfully');
+      await createNewSession();
+    } catch (err) {
+      console.error('Failed to save session:', err);
+      triggerNotification('Failed to save invoice');
+      setStatusMessage('READY');
+    }
   };
 
   const handleEmitPDF = async () => {
@@ -811,7 +897,7 @@ export default function VoiceBillingApp() {
         const rec = new SpeechRecognition();
         rec.continuous = true;
         rec.interimResults = true;
-        rec.lang = listenerLanguage;
+        rec.lang = 'kn-IN';
 
         rec.onstart = () => {
           setIsRecording(true);
@@ -859,12 +945,21 @@ export default function VoiceBillingApp() {
             setTextInput((voiceAccumulatedRef.current + ' ' + interimTranscript).trim());
           }
 
+          // Dynamic Toggle: Detect Kannada script
+          const currentText = (voiceAccumulatedRef.current + ' ' + interimTranscript).trim();
+          const hasKannada = /[\u0C80-\u0CFF]/.test(currentText);
+          if (hasKannada) {
+            setListenerLanguage('kn-IN');
+          } else {
+            setListenerLanguage('en-IN');
+          }
+
           if (silenceTimerRef.current) {
             clearTimeout(silenceTimerRef.current);
           }
           silenceTimerRef.current = setTimeout(() => {
             rec.stop();
-          }, 2500); // 2.5 seconds of silence before auto-submitting
+          }, 10000); // 10 seconds of silence before auto-submitting
         };
 
         recognitionRef.current = rec;
@@ -877,7 +972,7 @@ export default function VoiceBillingApp() {
     }
 
     try {
-      recognitionRef.current.lang = listenerLanguage;
+      recognitionRef.current.lang = 'kn-IN';
       recognitionRef.current.start();
     } catch (err: any) {
       console.warn('Mic start error:', err);
@@ -1214,49 +1309,6 @@ export default function VoiceBillingApp() {
                   style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-primary)', padding: '6px 10px', borderRadius: 'var(--radius-sm)', fontSize: '12px' }}
                 />
               </div>
-            </div>
-          </div>
-
-          {/* Sidebar Footer — Language Switch */}
-          <div
-            style={{
-              padding: '14px',
-              borderTop: '1px solid var(--border-primary)',
-            }}
-          >
-            <div className="font-mono" style={{ fontSize: '9px', color: 'var(--text-dim)', marginBottom: '8px', letterSpacing: '0.06em', fontWeight: 600 }}>
-              VOICE LANGUAGE
-            </div>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <button
-                className="btn"
-                style={{
-                  flex: 1,
-                  fontSize: '11px',
-                  padding: '7px 10px',
-                  background: listenerLanguage === 'en-IN' ? 'var(--accent-muted)' : 'transparent',
-                  color: listenerLanguage === 'en-IN' ? 'var(--accent-primary)' : 'var(--text-dim)',
-                  borderColor: listenerLanguage === 'en-IN' ? 'var(--border-accent)' : 'var(--border-primary)',
-                }}
-                onClick={() => setListenerLanguage('en-IN')}
-              >
-                <Globe size={12} />
-                English
-              </button>
-              <button
-                className="btn font-kannada"
-                style={{
-                  flex: 1,
-                  fontSize: '11px',
-                  padding: '7px 10px',
-                  background: listenerLanguage === 'kn-IN' ? 'var(--accent-muted)' : 'transparent',
-                  color: listenerLanguage === 'kn-IN' ? 'var(--accent-primary)' : 'var(--text-dim)',
-                  borderColor: listenerLanguage === 'kn-IN' ? 'var(--border-accent)' : 'var(--border-primary)',
-                }}
-                onClick={() => setListenerLanguage('kn-IN')}
-              >
-                ಕನ್ನಡ
-              </button>
             </div>
           </div>
         </aside>
@@ -1820,9 +1872,9 @@ export default function VoiceBillingApp() {
                   <Eye size={13} />
                   Preview Bill
                 </button>
-                <button className="btn btn-success" onClick={handleEmitPDF}>
-                  <Download size={13} />
-                  Download PDF
+                <button className="btn btn-success" onClick={handleSaveSession}>
+                  <Save size={13} />
+                  Save
                 </button>
                 <button className="btn btn-ghost" onClick={handleFlushLedger}>
                   <RotateCcw size={13} />
@@ -1938,9 +1990,7 @@ export default function VoiceBillingApp() {
               </div>
 
               {/* Status/Language Indicator on Right */}
-              <button
-                onClick={() => setListenerLanguage(prev => prev === 'en-IN' ? 'kn-IN' : 'en-IN')}
-                title="Toggle Voice Language (English / Kannada)"
+              <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -1950,15 +2000,13 @@ export default function VoiceBillingApp() {
                   background: 'var(--bg-primary)',
                   border: '1px solid var(--border-primary)',
                   height: '28px',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
                 }}
               >
                 <Sparkles size={11} style={{ color: 'var(--accent-primary)' }} />
                 <span className="font-mono" style={{ fontSize: '9px', color: 'var(--text-secondary)', fontWeight: 700 }}>
-                  {listenerLanguage === 'en-IN' ? 'EN' : 'KN'}
+                  AUTO (EN/KN)
                 </span>
-              </button>
+              </div>
             </div>
 
             {terminalView === 'sessions' ? (
@@ -2172,79 +2220,11 @@ export default function VoiceBillingApp() {
                   </div>
                 )}
 
-                {/* Language Selection segmented controller */}
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    padding: '10px 16px 0',
-                    borderTop: '1px solid var(--border-primary)',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      background: 'var(--bg-secondary)',
-                      padding: '3px',
-                      borderRadius: 'var(--radius-lg)',
-                      border: '1px solid var(--border-primary)',
-                      gap: '4px',
-                      width: '100%',
-                    }}
-                  >
-                    <button
-                      onClick={() => setListenerLanguage('en-IN')}
-                      style={{
-                        flex: 1,
-                        padding: '6px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        border: 'none',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s',
-                        background: listenerLanguage === 'en-IN' ? 'var(--bg-elevated)' : 'transparent',
-                        color: listenerLanguage === 'en-IN' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                        boxShadow: listenerLanguage === 'en-IN' ? 'var(--shadow-sm)' : 'none',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <Globe size={12} />
-                      English Speech (en-IN)
-                    </button>
-                    <button
-                      onClick={() => setListenerLanguage('kn-IN')}
-                      style={{
-                        flex: 1,
-                        padding: '6px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        border: 'none',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s',
-                        background: listenerLanguage === 'kn-IN' ? 'var(--bg-elevated)' : 'transparent',
-                        color: listenerLanguage === 'kn-IN' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                        boxShadow: listenerLanguage === 'kn-IN' ? 'var(--shadow-sm)' : 'none',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px'
-                      }}
-                      className="font-kannada"
-                    >
-                      ಕನ್ನಡ ಭಾಷೆ (kn-IN)
-                    </button>
-                  </div>
-                </div>
-
                 {/* Chat Input */}
                 <div
                   style={{
                     padding: '14px 16px',
+                    borderTop: '1px solid var(--border-primary)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
@@ -2538,53 +2518,7 @@ export default function VoiceBillingApp() {
               </button>
             </div>
 
-            {/* Language Selection segmented controller */}
-            <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-secondary)', padding: '4px', borderRadius: 'var(--radius-md)' }}>
-              <button
-                style={{
-                  flex: 1,
-                  padding: '6px 10px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: 'none',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  background: listenerLanguage === 'en-IN' ? 'var(--bg-elevated)' : 'transparent',
-                  color: listenerLanguage === 'en-IN' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                }}
-                onClick={() => {
-                  setListenerLanguage('en-IN');
-                  if (isVoiceRecording) {
-                    stopVoiceRecording();
-                    triggerNotification('Restarting recorder in English...');
-                  }
-                }}
-              >
-                English Speech (en-IN)
-              </button>
-              <button
-                style={{
-                  flex: 1,
-                  padding: '6px 10px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: 'none',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  background: listenerLanguage === 'kn-IN' ? 'var(--bg-elevated)' : 'transparent',
-                  color: listenerLanguage === 'kn-IN' ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                }}
-                onClick={() => {
-                  setListenerLanguage('kn-IN');
-                  if (isVoiceRecording) {
-                    stopVoiceRecording();
-                    triggerNotification('ಕನ್ನಡ ಭಾಷೆಯಲ್ಲಿ ರೆಕಾರ್ಡರ್ ಆರಂಭಿಸಲಾಗುತ್ತಿದೆ...');
-                  }
-                }}
-              >
-                ಕನ್ನಡ ಭಾಷೆ (kn-IN)
-              </button>
-            </div>
+
 
             {/* Animated Waveform Section */}
             <div

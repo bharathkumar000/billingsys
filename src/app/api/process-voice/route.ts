@@ -64,6 +64,7 @@ function extractMetadata(text: string) {
     let val = match[1].trim();
     const separators = [
       /\b(?:and|add|delete|remove|with|dated|date|to|destination|dispatched|through|by|for|whose|address|is|billing|gstin|gst|consignee|buyer|orders|order|plates|plate|cups|cup|items)\b/i,
+      /(?:ಮತ್ತು|ಸೇರಿಸಿ|ಹಾಕಿ|ತೆಗೆದುಹಾಕಿ|ಬೇಡ|ದಿನಾಂಕ|ಸ್ಥಳ|ವಿಳಾಸ|ಜಿಎಸ್ಟಿ|ಹೆಸರು|ಗ್ರಾಹಕರು|ಖರೀದಿದಾರರ|ಸ್ವೀಕರಿಸುವವರ|ರವಾನೆ)/i,
       /[\n\r,，.・!！?？]/
     ];
     for (const sep of separators) {
@@ -75,7 +76,7 @@ function extractMetadata(text: string) {
     return val || null;
   }
 
-  // Helper to extract GSTIN (alphanumeric 15-char identifiers, ignoring spaces)
+  // Helper to extract GSTIN (alphanumeric 10-25 char identifiers, ignoring spaces)
   function extractGstin(regex: RegExp): string | null {
     const match = text.match(regex);
     if (!match) return null;
@@ -92,7 +93,7 @@ function extractMetadata(text: string) {
   }
 
   // 1. Customer/Buyer Name
-  let rawName = extractAndClean(/(?:on the name of|in the name of|customer name is|customer name|customer is|bill to|for|client|consignee|ಹೆಸರು|ಗ್ರಾಹಕರು)\s+([a-zA-Z0-9್-೯\s]{1,40})/i);
+  let rawName = extractAndClean(/(?:on the name of|in the name of|customer name is|customer name|customer is|buyer name is|buyer name|name is|\bname\b|bill to|for|client|consignee|ಹೆಸರು|ಗ್ರಾಹಕರ ಹೆಸರು|ಹೆಸರಿಗೆ|ಗ್ರಾಹಕರು)\s+([a-zA-Z0-9್-೯\s]{1,40})/i);
   
   if (!rawName) {
     // Try suffix patterns like "Name ಅವರಿಗೆ" or "Name ರವರಿಗೆ" or "Name ನಿಗೆ" or "Name ರಿಗೆ" or "Name ವಿಗೆ"
@@ -101,6 +102,7 @@ function extractMetadata(text: string) {
       let matchedName = suffixMatch[1].trim();
       const separators = [
         /\b(?:and|add|delete|remove|with|dated|date|to|destination|dispatched|through|by|for|whose|address|is|billing|gstin|gst|consignee|buyer|orders|order|plates|plate|cups|cup|items)\b/i,
+        /(?:ಮತ್ತು|ಸೇರಿಸಿ|ಹಾಕಿ|ತೆಗೆದುಹಾಕಿ|ಬೇಡ|ದಿನಾಂಕ|ಸ್ಥಳ|ವಿಳಾಸ|ಜಿಎಸ್ಟಿ|ಹೆಸರು|ಗ್ರಾಹಕರು|ಖರೀದಿದಾರರ|ಸ್ವೀಕರಿಸುವವರ|ರವಾನೆ)/i,
         /[\n\r,，.・!！?？]/
       ];
       for (const sep of separators) {
@@ -134,7 +136,7 @@ function extractMetadata(text: string) {
   metadata.invoiceDate = extractAndClean(/(?:dated|date is|date|ದಿನಾಂಕ)\s+([0-9a-zA-Z\s್-೯]+)/i);
 
   // 3. Destination
-  const rawDest = extractAndClean(/(?:destination is|destination|ship to|to|ತಲುಪುವ ಸ್ಥಳ)\s+([a-zA-Z0-9್-೯\s]+)/i);
+  const rawDest = extractAndClean(/(?:destination is|destination|ship to|to|ತಲುಪುವ ಸ್ಥಳ|ಸ್ಥಳ)\s+([a-zA-Z0-9್-೯\s]+)/i);
   if (rawDest) {
     const lowerCand = rawDest.toLowerCase();
     const isFoodKeyword = LOCAL_MENU_DATABASE.some(item => 
@@ -362,11 +364,17 @@ Instructions:
 2. Standardize numerical counts to Arabic numerals.
 3. Map items to their bilingual representation in the database where available. Always output English name ('item_name_en') AND Kannada script equivalent ('item_name_kn').
 4. STRICT INSTRUCTION: Only add items that exist in the provided Menu Database. If the spoken dish is NOT found in the database, DO NOT add it to the items array.
-5. If a customer name is specified (e.g. "in the name of Bha" or "for Bharath"), extract it and output it in the 'customer_name' field.
-6. If a date is specified (e.g. "dated 1st June"), extract it and output it in the 'invoice_date' field.
-7. If a shipping destination is specified (e.g. "destination Kundapura" or "to Kundapura"), extract it and output it in the 'destination' field.
-8. If a shipping mode/dispatcher is specified (e.g. "dispatched through road" or "by truck"), extract it and output it in the 'dispatched_through' field.
-9. Return strictly a single valid JSON object matching the specification schema below. Do not wrap the JSON output in markdown fences or include extra conversational explanation text.
+5. If a customer name or buyer name is specified (e.g. "in the name of Bharath" or "customer name is Bharath" or "ಹೆಸರು ಭರತ್"), extract it in 'customer_name'.
+6. If a date is specified (e.g. "dated 1st June" or "ದಿನಾಂಕ ಜೂನ್ 1"), extract it in 'invoice_date'.
+7. If a shipping destination is specified (e.g. "destination Kundapura" or "to Kundapura" or "ಸ್ಥಳ ಕುಂದಾಪುರ"), extract it in 'destination'.
+8. If a shipping mode/dispatcher is specified (e.g. "dispatched through road" or "by truck" or "ರವಾನೆ ರಸ್ತೆ ಮೂಲಕ"), extract it in 'dispatched_through'.
+9. If a buyer address is specified (e.g. "buyer address is MG Road" or "ಖರೀದಿದಾರರ ವಿಳಾಸ ಬೆಂಗಳೂರು"), extract it in 'buyer_address'.
+10. If a buyer GSTIN is specified (e.g. "buyer GSTIN is 29DAFPD7054C2ZD"), extract it in 'buyer_gstin'.
+11. If a consignee name is specified (e.g. "consignee name is Ramesh"), extract it in 'consignee_name'. If consignee name is not specified but customer name is, set 'consignee_name' to customer name (and vice versa).
+12. If a consignee address/shipping address is specified (e.g. "shipping address is Udupi"), extract it in 'consignee_address'. If buyer address is specified but consignee address is not, cross-fill consignee address to buyer address (and vice versa).
+13. If a consignee GSTIN is specified (e.g. "consignee GST is 29DAFPD7054C2ZD"), extract it in 'consignee_gstin'.
+14. If terms of delivery are specified (e.g. "terms of delivery is hand delivery" or "ವಿತರಣಾ ನಿಯಮಗಳು"), extract it in 'terms_of_delivery'.
+15. Return strictly a single valid JSON object matching the specification schema below. Do not wrap the JSON output in markdown fences or include extra conversational explanation text.
 
 Target Schema Specification:
 {
@@ -374,6 +382,12 @@ Target Schema Specification:
   "invoice_date": "String or null if unidentified",
   "destination": "String or null if unidentified",
   "dispatched_through": "String or null if unidentified",
+  "buyer_address": "String or null if unidentified",
+  "buyer_gstin": "String or null if unidentified",
+  "consignee_name": "String or null if unidentified",
+  "consignee_address": "String or null if unidentified",
+  "consignee_gstin": "String or null if unidentified",
+  "terms_of_delivery": "String or null if unidentified",
   "items": [
     {
       "item_name_en": "Standardized English Name",
