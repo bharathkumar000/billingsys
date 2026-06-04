@@ -1,45 +1,56 @@
-import sqlite3 from 'sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-let dbPath = path.join(process.cwd(), 'billing.db');
+let db: any = null;
 
-// Vercel deployment: database filesystem is read-only, use /tmp/billing.db
-if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
-  const tmpDbPath = path.join('/tmp', 'billing.db');
-  
-  // Copy the initial database seed if it exists and doesn't exist in /tmp yet
-  if (!fs.existsSync(tmpDbPath)) {
-    if (fs.existsSync(dbPath)) {
-      try {
-        fs.copyFileSync(dbPath, tmpDbPath);
-        console.log('Seeded SQLite database to /tmp/billing.db');
-      } catch (err: any) {
-        console.warn('Failed to seed SQLite database to /tmp:', err.message);
+export function getDb() {
+  if (db) return db;
+
+  // Lazily require sqlite3 to prevent native evaluation at build time
+  const sqlite3 = require('sqlite3');
+
+  let dbPath = path.join(process.cwd(), 'billing.db');
+
+  // Vercel deployment: database filesystem is read-only, use /tmp/billing.db
+  if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+    const tmpDbPath = path.join('/tmp', 'billing.db');
+    
+    // Copy the initial database seed if it exists and doesn't exist in /tmp yet
+    if (!fs.existsSync(tmpDbPath)) {
+      if (fs.existsSync(dbPath)) {
+        try {
+          fs.copyFileSync(dbPath, tmpDbPath);
+          console.log('Seeded SQLite database to /tmp/billing.db');
+        } catch (err: any) {
+          console.warn('Failed to seed SQLite database to /tmp:', err.message);
+        }
       }
     }
+    dbPath = tmpDbPath;
   }
-  dbPath = tmpDbPath;
-}
 
-// Ensure db directory structure exists
-const dbDir = path.dirname(dbPath);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
-}
-
-export const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Error connecting to SQLite database:', err.message);
-  } else {
-    console.log('Connected to SQLite database at:', dbPath);
+  // Ensure db directory structure exists
+  const dbDir = path.dirname(dbPath);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
   }
-});
+
+  db = new sqlite3.Database(dbPath, (err: any) => {
+    if (err) {
+      console.error('Error connecting to SQLite database:', err.message);
+    } else {
+      console.log('Connected to SQLite database at:', dbPath);
+    }
+  });
+
+  return db;
+}
 
 // Promise-based wrappers for sqlite3
 export function dbRun(sql: string, params: any[] = []): Promise<{ id: string | number }> {
   return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
+    const database = getDb();
+    database.run(sql, params, function (this: any, err: any) {
       if (err) {
         reject(err);
       } else {
@@ -51,7 +62,8 @@ export function dbRun(sql: string, params: any[] = []): Promise<{ id: string | n
 
 export function dbGet<T>(sql: string, params: any[] = []): Promise<T | undefined> {
   return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
+    const database = getDb();
+    database.get(sql, params, (err: any, row: any) => {
       if (err) {
         reject(err);
       } else {
@@ -63,7 +75,8 @@ export function dbGet<T>(sql: string, params: any[] = []): Promise<T | undefined
 
 export function dbAll<T>(sql: string, params: any[] = []): Promise<T[]> {
   return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
+    const database = getDb();
+    database.all(sql, params, (err: any, rows: any) => {
       if (err) {
         reject(err);
       } else {
