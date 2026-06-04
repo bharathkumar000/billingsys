@@ -31,6 +31,7 @@ import {
   Bell,
   Eye,
   Save,
+  ArrowUpDown,
 } from 'lucide-react';
 
 /* ===== TYPE DEFINITIONS ===== */
@@ -52,6 +53,8 @@ interface Session {
   session_title: string;
   created_at: string;
   updated_at: string;
+  customer_name?: string;
+  grand_total?: number;
 }
 
 interface AppNotification {
@@ -189,16 +192,21 @@ export default function VoiceBillingApp() {
   const [statusMessage, setStatusMessage] = useState<StatusType>('IDLE');
   const [customerName, setCustomerName] = useState('');
   const [editingCell, setEditingCell] = useState<{ index: number; field: keyof BillingItem } | null>(null);
+  const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'num-desc' | 'num-asc' | 'total-desc' | 'total-asc' | 'name-asc' | 'name-desc'>('date-desc');
 
   // UI state
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('voicebill-theme') as 'dark' | 'light') || 'dark';
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  // Load theme from localStorage on client-side mount to avoid hydration mismatch
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('voicebill-theme') as 'dark' | 'light';
+    if (savedTheme) {
+      setTheme(savedTheme);
     }
-    return 'dark';
-  });
+  }, []);
+
   const [menuCategory, setMenuCategory] = useState<string>('starters');
   
   // Menu visibility toggled by "Add from Menu" button
@@ -455,18 +463,17 @@ export default function VoiceBillingApp() {
     setIsLoading(true);
     setStatusMessage('CREATING');
     const newId = 'sess_' + Math.floor(100000 + Math.random() * 900000);
-    const newTitle = `Invoice #${Math.floor(1000 + Math.random() * 9000)}`;
 
     try {
       const res = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: newId, title: newTitle }),
+        body: JSON.stringify({ id: newId }),
       });
       const data = await res.json();
       if (data.success) {
         setActiveSessionId(newId);
-        setActiveSessionTitle(newTitle);
+        setActiveSessionTitle(data.session.session_title);
         setItems([]);
         setChatLog([]);
         setCustomerName('');
@@ -959,7 +966,7 @@ export default function VoiceBillingApp() {
           }
           silenceTimerRef.current = setTimeout(() => {
             rec.stop();
-          }, 10000); // 10 seconds of silence before auto-submitting
+          }, 3000); // 3 seconds of silence before auto-submitting
         };
 
         recognitionRef.current = rec;
@@ -988,6 +995,31 @@ export default function VoiceBillingApp() {
   const calculateGrandTotal = (): number => {
     return items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
   };
+
+  const getSortedSessions = useCallback(() => {
+    return [...sessions].sort((a, b) => {
+      switch (sortBy) {
+        case 'date-desc':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'date-asc':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case 'num-desc':
+          return b.session_title.localeCompare(a.session_title, undefined, { numeric: true, sensitivity: 'base' });
+        case 'num-asc':
+          return a.session_title.localeCompare(b.session_title, undefined, { numeric: true, sensitivity: 'base' });
+        case 'total-desc':
+          return (b.grand_total || 0) - (a.grand_total || 0);
+        case 'total-asc':
+          return (a.grand_total || 0) - (b.grand_total || 0);
+        case 'name-asc':
+          return (a.customer_name || '').localeCompare(b.customer_name || '');
+        case 'name-desc':
+          return (b.customer_name || '').localeCompare(a.customer_name || '');
+        default:
+          return 0;
+      }
+    });
+  }, [sessions, sortBy]);
 
   const formatCurrency = (n: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -2030,74 +2062,154 @@ export default function VoiceBillingApp() {
                 </div>
 
                 {/* Session List */}
-                <div style={{ flex: 1, overflowY: 'auto' }}>
-                  <div className="font-mono" style={{
-                    fontSize: '9px',
-                    color: 'var(--text-dim)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.1em',
-                    padding: '8px 6px 6px',
-                    fontWeight: 600,
+                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 6px 10px',
+                    borderBottom: '1px solid var(--border-primary)',
+                    marginBottom: '10px',
                   }}>
-                    Recent Sessions
-                  </div>
-                  {sessions.length === 0 ? (
-                    <div style={{
-                      padding: '24px 16px',
-                      textAlign: 'center',
+                    <span className="font-mono" style={{
+                      fontSize: '9px',
                       color: 'var(--text-dim)',
-                      fontSize: '12px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.1em',
+                      fontWeight: 600,
                     }}>
-                      No sessions yet
-                    </div>
-                  ) : (
-                    sessions.map((session) => (
-                      <div
-                        key={session.id}
-                        className={`session-item ${session.id === activeSessionId ? 'active' : ''}`}
-                        onClick={() => loadSessionDetail(session.id)}
+                      Recent Sessions
+                    </span>
+                    
+                    {/* Sort Select */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <ArrowUpDown size={11} style={{ color: 'var(--text-dim)' }} />
+                      <select
+                        value={sortBy}
+                        onChange={(e: any) => setSortBy(e.target.value)}
                         style={{
-                          padding: '10px',
-                          borderRadius: 'var(--radius-md)',
+                          background: 'var(--bg-elevated)',
                           border: '1px solid var(--border-primary)',
-                          background: session.id === activeSessionId ? 'var(--accent-muted)' : 'var(--bg-secondary)',
+                          color: 'var(--text-secondary)',
+                          fontSize: '10px',
+                          padding: '2px 4px',
+                          borderRadius: 'var(--radius-sm)',
+                          outline: 'none',
                           cursor: 'pointer',
-                          marginBottom: '8px',
-                          transition: 'all 0.15s ease',
+                          fontFamily: 'inherit',
+                          fontWeight: 600,
                         }}
                       >
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          marginBottom: '4px',
-                        }}>
-                          <FileText size={13} style={{ color: session.id === activeSessionId ? 'var(--accent-primary)' : 'var(--text-dim)', flexShrink: 0 }} />
-                          <span style={{
-                            fontSize: '13px',
-                            fontWeight: session.id === activeSessionId ? 600 : 400,
-                            color: session.id === activeSessionId ? 'var(--text-primary)' : 'var(--text-secondary)',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}>
-                            {session.session_title}
-                          </span>
-                        </div>
-                        <div className="font-mono" style={{
-                          fontSize: '10px',
-                          color: 'var(--text-dim)',
-                          paddingLeft: '21px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                        }}>
-                          <Clock size={9} />
-                          {formatDate(session.created_at)} · {formatTime(session.created_at)}
-                        </div>
+                        <option value="date-desc">Newest First</option>
+                        <option value="date-asc">Oldest First</option>
+                        <option value="num-desc">Invoice No (Desc)</option>
+                        <option value="num-asc">Invoice No (Asc)</option>
+                        <option value="total-desc">Amount (High-Low)</option>
+                        <option value="total-asc">Amount (Low-High)</option>
+                        <option value="name-asc">Customer (A-Z)</option>
+                        <option value="name-desc">Customer (Z-A)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ flex: 1, overflowY: 'auto' }}>
+                    {sessions.length === 0 ? (
+                      <div style={{
+                        padding: '24px 16px',
+                        textAlign: 'center',
+                        color: 'var(--text-dim)',
+                        fontSize: '12px',
+                      }}>
+                        No sessions yet
                       </div>
-                    ))
-                  )}
+                    ) : (
+                      getSortedSessions().map((session) => (
+                        <div
+                          key={session.id}
+                          className={`session-item ${session.id === activeSessionId ? 'active' : ''}`}
+                          onClick={() => loadSessionDetail(session.id)}
+                          style={{
+                            padding: '10px',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--border-primary)',
+                            background: session.id === activeSessionId ? 'var(--accent-muted)' : 'var(--bg-secondary)',
+                            cursor: 'pointer',
+                            marginBottom: '8px',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: '4px',
+                          }}>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}>
+                              <FileText size={13} style={{ color: session.id === activeSessionId ? 'var(--accent-primary)' : 'var(--text-dim)', flexShrink: 0 }} />
+                              <span style={{
+                                fontSize: '13px',
+                                fontWeight: session.id === activeSessionId ? 600 : 400,
+                                color: session.id === activeSessionId ? 'var(--text-primary)' : 'var(--text-secondary)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}>
+                                {session.session_title}
+                              </span>
+                            </div>
+                            {session.grand_total !== undefined && session.grand_total > 0 && (
+                              <span className="font-mono" style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                color: session.id === activeSessionId ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                                flexShrink: 0,
+                              }}>
+                                {formatCurrency(session.grand_total)}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            paddingLeft: '21px',
+                            marginTop: '4px',
+                          }}>
+                            <div className="font-mono" style={{
+                              fontSize: '9px',
+                              color: 'var(--text-dim)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                            }}>
+                              <Clock size={9} />
+                              {formatDate(session.created_at)} · {formatTime(session.created_at)}
+                            </div>
+                            {session.customer_name && (
+                              <span style={{
+                                fontSize: '9px',
+                                color: 'var(--text-dim)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                maxWidth: '100px',
+                                fontWeight: 500,
+                              }}>
+                                {session.customer_name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (

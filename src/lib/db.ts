@@ -2,7 +2,25 @@ import sqlite3 from 'sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-const dbPath = path.join(process.cwd(), 'billing.db');
+let dbPath = path.join(process.cwd(), 'billing.db');
+
+// Vercel deployment: database filesystem is read-only, use /tmp/billing.db
+if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+  const tmpDbPath = path.join('/tmp', 'billing.db');
+  
+  // Copy the initial database seed if it exists and doesn't exist in /tmp yet
+  if (!fs.existsSync(tmpDbPath)) {
+    if (fs.existsSync(dbPath)) {
+      try {
+        fs.copyFileSync(dbPath, tmpDbPath);
+        console.log('Seeded SQLite database to /tmp/billing.db');
+      } catch (err: any) {
+        console.warn('Failed to seed SQLite database to /tmp:', err.message);
+      }
+    }
+  }
+  dbPath = tmpDbPath;
+}
 
 // Ensure db directory structure exists
 const dbDir = path.dirname(dbPath);
@@ -14,7 +32,7 @@ export const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Error connecting to SQLite database:', err.message);
   } else {
-    console.log('Connected to local SQLite database at:', dbPath);
+    console.log('Connected to SQLite database at:', dbPath);
   }
 });
 

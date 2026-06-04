@@ -10,13 +10,13 @@ interface BillingItem {
 
 // Complete local menu items for fallback parser lookup
 const LOCAL_MENU_DATABASE = [
-  { name_en: 'Paneer Tikka', name_kn: 'ಪನೀರ್ ಟಿಕ್ಕಾ', price: 220, unit: 'Plate', keywords: ['paneer tikka', 'paneer tika', 'ಟಿಕ್ಕಾ', 'ಪನೀರ್'] },
+  { name_en: 'Paneer Tikka', name_kn: 'ಪನೀರ್ ಟಿಕ್ಕಾ', price: 220, unit: 'Plate', keywords: ['paneer tikka', 'paneer tika', 'paneer teeka', 'paneertikka', 'ಟಿಕ್ಕಾ', 'ಟಿಕ್ಕ', 'ಪನೀರ್ ಟಿಕ್ಕಾ', 'ಪನ್ನೀರ್ ಟಿಕ್ಕಾ', 'ಪನೀರ್ ಟಿಕ್ಕ', 'ಪನ್ನೀರ್ ಟಿಕ್ಕ'] },
   { name_en: 'Chicken 65', name_kn: 'ಚಿಕನ್ 65', price: 280, unit: 'Plate', keywords: ['chicken 65', 'chiken 65', 'ಚಿಕನ್ 65'] },
   { name_en: 'Gobi Manchurian', name_kn: 'ಗೋಬಿ ಮಂಚೂರಿಯನ್', price: 180, unit: 'Plate', keywords: ['gobi manchurian', 'gobi', 'ಮಂಚೂರಿಯನ್', 'ಗೋಬಿ'] },
   { name_en: 'Veg Spring Roll', name_kn: 'ವೆಜ್ ಸ್ಪ್ರಿಂಗ್ ರೋಲ್', price: 160, unit: 'Plate', keywords: ['spring roll', 'veg roll', 'ಸ್ಪ್ರಿಂಗ್ ರೋಲ್'] },
   { name_en: 'Masala Papad', name_kn: 'ಮಸಾಲ ಪಾಪಡ್', price: 80, unit: 'Plate', keywords: ['masala papad', 'papad', 'ಪಾಪಡ್', 'ಮಸಾಲ ಪಾಪಡ್'] },
   { name_en: 'Butter Chicken', name_kn: 'ಬಟರ್ ಚಿಕನ್', price: 350, unit: 'Plate', keywords: ['butter chicken', 'ಬಟರ್ ಚಿಕನ್'] },
-  { name_en: 'Paneer Butter Masala', name_kn: 'ಪನೀರ್ ಬಟರ್ ಮಸಾಲ', price: 280, unit: 'Plate', keywords: ['paneer butter', 'paneer butter masala', 'ಪನೀರ್ ಬಟರ್'] },
+  { name_en: 'Paneer Butter Masala', name_kn: 'ಪನೀರ್ ಬಟರ್ ಮಸಾಲ', price: 280, unit: 'Plate', keywords: ['paneer butter', 'paneer butter masala', 'ಪನೀರ್ ಬಟರ್', 'ಪನ್ನೀರ್ ಬಟರ್', 'ಪನೀರ್ ಬಟರ್ ಮಸಾಲ', 'ಪನ್ನೀರ್ ಬಟರ್ ಮಸಾಲ'] },
   { name_en: 'Dal Makhani', name_kn: 'ದಾಲ್ ಮಖನಿ', price: 220, unit: 'Bowl', keywords: ['dal makhani', 'dal', 'ದಾಲ್', 'ದಾಲ್ ಮಖನಿ'] },
   { name_en: 'Mutton Rogan Josh', name_kn: 'ಮಟನ್ ರೋಗನ್ ಜೋಶ್', price: 420, unit: 'Plate', keywords: ['mutton rogan', 'rogan josh', 'ಮಟನ್ ರೋಗನ್'] },
   { name_en: 'Aloo Gobi', name_kn: 'ಆಲೂ ಗೋಬಿ', price: 180, unit: 'Plate', keywords: ['aloo gobi', 'aloo', 'ಆಲೂ ಗೋಬಿ'] },
@@ -93,11 +93,11 @@ function extractMetadata(text: string) {
   }
 
   // 1. Customer/Buyer Name
-  let rawName = extractAndClean(/(?:on the name of|in the name of|customer name is|customer name|customer is|buyer name is|buyer name|name is|\bname\b|bill to|for|client|consignee|ಹೆಸರು|ಗ್ರಾಹಕರ ಹೆಸರು|ಹೆಸರಿಗೆ|ಗ್ರಾಹಕರು)\s+([a-zA-Z0-9್-೯\s]{1,40})/i);
+  let rawName = extractAndClean(/(?:on the name of|in the name of|customer name is|customer name|customer is|buyer name is|buyer name|name is|\bname\b|bill to|for|client|consignee|ಹೆಸರು|ಗ್ರಾಹಕರ ಹೆಸರು|ಹೆಸರಿಗೆ|ಗ್ರಾಹಕರು)\s+([a-zA-Z0-9\u0C80-\u0CFF\s]{1,40})/i);
   
   if (!rawName) {
-    // Try suffix patterns like "Name ಅವರಿಗೆ" or "Name ರವರಿಗೆ" or "Name ನಿಗೆ" or "Name ರಿಗೆ" or "Name ವಿಗೆ"
-    const suffixMatch = text.match(/(?:^|\s)([a-zA-Z0-9್-೯\s]{1,30})\s*(?:ಅವರಿಗೆ|ರವರಿಗೆ|ನಿಗೆ|ರಿಗೆ|ವಿಗೆ|ಅವರ ಹೆಸರಿಗೆ|ಹೆಸರಿಗೆ)/i);
+    // Try suffix patterns like "Name ಅವರಿಗೆ" or "Name ರವರಿಗೆ" or "Name ನಿಗೆ" or "Name ರಿಗೆ" or "Name ವಿಗೆ" or "Name ಗೆ" or "Name ನಿಮಗೆ"
+    const suffixMatch = text.match(/(?:^|\s)([a-zA-Z0-9\u0C80-\u0CFF\s]{1,30})\s*(?:ಅವರಿಗೆ|ರವರಿಗೆ|ನಿಗೆ|ರಿಗೆ|ವಿಗೆ|ಗೆ|ನಿಮಗೆ|ಹೆಸರಿಗೆ|ಅವರ ಹೆಸರಿಗೆ|ಹೆಸರಲ್ಲಿ|ಹೆಸರಿನಲ್ಲಿ)/i);
     if (suffixMatch) {
       let matchedName = suffixMatch[1].trim();
       const separators = [
@@ -120,6 +120,11 @@ function extractMetadata(text: string) {
   }
 
   if (rawName) {
+    // Clean conversational/filler leading words like "ಇದು", "ಇದನ್ನ", "ಇದನ್ನು", "ಇದ್ನ", "ದಯವಿಟ್ಟು", "ಪ್ಲೀಸ್"
+    rawName = rawName.replace(/^(?:ಇದನ್ನ|ಇದು|ಇದನ್ನು|ಇದ್ನ|ದಯವಿಟ್ಟು|ಪ್ಲೀಸ್|ದಯಮಾಡಿ|please|this|bill|invoice|for|on)\s+/i, '').trim();
+    // Clean trailing Kannada filler/possessive words like "ತನ್ನ", "ತನ್ನದೇ", "ತನ್ನದಾದ", "ನನ್ನ", "ನನ್ನದೇ"
+    rawName = rawName.replace(/\s+(?:ತನ್ನ|ತನ್ನದೇ|ತನ್ನದಾದ|ನನ್ನ|ನನ್ನದೇ)$/i, '').trim();
+    
     const formattedName = rawName.split(/\s+/).map(word => {
       if (!word) return '';
       if (/^[a-zA-Z]/.test(word)) {
@@ -127,16 +132,16 @@ function extractMetadata(text: string) {
       }
       return word; // Keep Kannada script unchanged
     }).join(' ');
-    if (formattedName.toLowerCase() !== 'the' && formattedName.toLowerCase() !== 'a' && formattedName.toLowerCase() !== 'menu' && formattedName.toLowerCase() !== 'bill' && formattedName.toLowerCase() !== 'invoice') {
+    if (formattedName && formattedName.toLowerCase() !== 'the' && formattedName.toLowerCase() !== 'a' && formattedName.toLowerCase() !== 'menu' && formattedName.toLowerCase() !== 'bill' && formattedName.toLowerCase() !== 'invoice') {
       metadata.customerName = formattedName;
     }
   }
 
   // 2. Invoice Date
-  metadata.invoiceDate = extractAndClean(/(?:dated|date is|date|ದಿನಾಂಕ)\s+([0-9a-zA-Z\s್-೯]+)/i);
+  metadata.invoiceDate = extractAndClean(/(?:dated|date is|date|ದಿನಾಂಕ)\s+([0-9a-zA-Z\s\u0C80-\u0CFF]+)/i);
 
   // 3. Destination
-  const rawDest = extractAndClean(/(?:destination is|destination|ship to|to|ತಲುಪುವ ಸ್ಥಳ|ಸ್ಥಳ)\s+([a-zA-Z0-9್-೯\s]+)/i);
+  const rawDest = extractAndClean(/(?:destination is|destination|ship to|to|ತಲುಪುವ ಸ್ಥಳ|ಸ್ಥಳ)\s+([a-zA-Z0-9\u0C80-\u0CFF\s]+)/i);
   if (rawDest) {
     const lowerCand = rawDest.toLowerCase();
     const isFoodKeyword = LOCAL_MENU_DATABASE.some(item => 
@@ -148,7 +153,7 @@ function extractMetadata(text: string) {
   }
 
   // 4. Dispatched Through
-  const rawDisp = extractAndClean(/(?:dispatched through|dispatch through|by|ರವಾನೆ ವಿಧಾನ)\s+([a-zA-Z\s್-೯]+)/i);
+  const rawDisp = extractAndClean(/(?:dispatched through|dispatch through|by|ರವಾನೆ ವಿಧಾನ)\s+([a-zA-Z\s\u0C80-\u0CFF]+)/i);
   if (rawDisp) {
     const lowerCand = rawDisp.toLowerCase();
     const isFoodKeyword = LOCAL_MENU_DATABASE.some(item => 
@@ -160,22 +165,22 @@ function extractMetadata(text: string) {
   }
 
   // 5. Buyer Address
-  metadata.buyerAddress = extractAndClean(/(?:buyer address is|buyer address|buyer billing address|billing address|whose address is|address is|address|ಖರೀದಿದಾರರ ವಿಳಾಸ)\s+([a-zA-Z0-9್-೯\s,.-]+)/i);
+  metadata.buyerAddress = extractAndClean(/(?:buyer address is|buyer address|buyer billing address|billing address|whose address is|address is|address|ಖರೀದಿದಾರರ ವಿಳಾಸ)\s+([a-zA-Z0-9\u0C80-\u0CFF\s,.-]+)/i);
 
   // 6. Buyer GSTIN
-  metadata.buyerGstin = extractGstin(/(?:buyer gstin|buyer gst|buyer gst number|ಖರೀದಿದಾರರ ಜಿಎಸ್ಟಿ)\s+([a-zA-Z0-9್-೯\s]{15,25})/i);
+  metadata.buyerGstin = extractGstin(/(?:buyer gstin|buyer gst|buyer gst number|ಖರೀದಿದಾರರ ಜಿಎಸ್ಟಿ)\s+([a-zA-Z0-9\u0C80-\u0CFF\s]{15,25})/i);
 
   // 7. Consignee Name
-  metadata.consigneeName = extractAndClean(/(?:consignee name is|consignee name|ship to name|ಸ್ವೀಕರಿಸುವವರ ಹೆಸರು)\s+([a-zA-Z0-9್-೯\s]+)/i);
+  metadata.consigneeName = extractAndClean(/(?:consignee name is|consignee name|ship to name|ಸ್ವೀಕರಿಸುವವರ ಹೆಸರು)\s+([a-zA-Z0-9\u0C80-\u0CFF\s]+)/i);
 
   // 8. Consignee Address
-  metadata.consigneeAddress = extractAndClean(/(?:consignee address is|consignee address|shipping address|whose address is|address is|address|ಸ್ವೀಕರಿಸುವವರ ವಿಳಾಸ)\s+([a-zA-Z0-9್-೯\s,.-]+)/i);
+  metadata.consigneeAddress = extractAndClean(/(?:consignee address is|consignee address|shipping address|whose address is|address is|address|ಸ್ವೀಕರಿಸುವವರ ವಿಳಾಸ)\s+([a-zA-Z0-9\u0C80-\u0CFF\s,.-]+)/i);
 
   // 9. Consignee GSTIN
-  metadata.consigneeGstin = extractGstin(/(?:consignee gstin|consignee gst|gstin|gst number|gst|ಸ್ವೀಕರಿಸುವವರ ಜಿಎಸ್ಟಿ)\s+([a-zA-Z0-9್-೯\s]{15,25})/i);
+  metadata.consigneeGstin = extractGstin(/(?:consignee gstin|consignee gst|gstin|gst number|gst|ಸ್ವೀಕರಿಸುವವರ ಜಿಎಸ್ಟಿ)\s+([a-zA-Z0-9\u0C80-\u0CFF\s]{15,25})/i);
 
   // 10. Terms of Delivery
-  metadata.termsOfDelivery = extractAndClean(/(?:terms of delivery|terms of delivery is|delivery terms|delivery terms is|terms of delivery are|delivery terms are|ವಿತರಣಾ ನಿಯಮಗಳು)\s+([a-zA-Z0-9್-೯\s]+)/i);
+  metadata.termsOfDelivery = extractAndClean(/(?:terms of delivery|terms of delivery is|delivery terms|delivery terms is|terms of delivery are|delivery terms are|ವಿತರಣಾ ನಿಯಮಗಳು)\s+([a-zA-Z0-9\u0C80-\u0CFF\s]+)/i);
 
   // CROSS-FILL DEFAULT RULES FOR BILINGUAL INVOICES
   if (metadata.customerName && !metadata.consigneeName) {
