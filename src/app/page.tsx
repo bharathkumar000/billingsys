@@ -460,6 +460,22 @@ export default function VoiceBillingApp() {
     setStatusMessage('CREATING');
     const newId = 'sess_' + Math.floor(100000 + Math.random() * 900000);
 
+    // Clear state immediately to provide instant visual feedback to user
+    setItems([]);
+    setChatLog([]);
+    setCustomerName('');
+    setInvoiceDate('');
+    setDestination('');
+    setDispatchedThrough('');
+    setTermsOfDelivery('');
+    setConsigneeName('');
+    setConsigneeAddress('');
+    setConsigneeGstin('');
+    setBuyerAddress('');
+    setBuyerGstin('');
+    setConsigneePhone('');
+    setBuyerPhone('');
+
     try {
       const res = await fetch('/api/sessions', {
         method: 'POST',
@@ -470,20 +486,6 @@ export default function VoiceBillingApp() {
       if (data.success) {
         setActiveSessionId(newId);
         setActiveSessionTitle(data.session.session_title);
-        setItems([]);
-        setChatLog([]);
-        setCustomerName('');
-        setInvoiceDate('');
-        setDestination('');
-        setDispatchedThrough('');
-        setTermsOfDelivery('');
-        setConsigneeName('');
-        setConsigneeAddress('');
-        setConsigneeGstin('');
-        setBuyerAddress('');
-        setBuyerGstin('');
-        setConsigneePhone('');
-        setBuyerPhone('');
         loadSessions(false);
         setStatusMessage('READY');
         triggerNotification('New invoice session created');
