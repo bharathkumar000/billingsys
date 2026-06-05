@@ -16,7 +16,9 @@ export async function POST(req: Request) {
       consigneeAddress = '', 
       consigneeGstin = '', 
       buyerAddress = '', 
-      buyerGstin = '' 
+      buyerGstin = '',
+      consigneePhone = '',
+      buyerPhone = ''
     } = body;
 
     const docStream = new PassThrough();
@@ -45,7 +47,9 @@ export async function POST(req: Request) {
       consigneeAddress,
       consigneeGstin,
       buyerAddress,
-      buyerGstin
+      buyerGstin,
+      consigneePhone,
+      buyerPhone
     );
 
     const buffer = await pdfPromise;

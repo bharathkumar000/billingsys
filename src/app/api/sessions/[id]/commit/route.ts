@@ -21,7 +21,9 @@ export async function POST(
       consigneeAddress,
       consigneeGstin,
       buyerAddress,
-      buyerGstin
+      buyerGstin,
+      consigneePhone,
+      buyerPhone
     } = body;
     const isoDate = new Date().toISOString();
 
@@ -31,12 +33,14 @@ export async function POST(
         `INSERT INTO billing_sessions (
           id, session_title, created_at, updated_at, 
           customer_name, invoice_date, destination, dispatched_through, terms_of_delivery,
-          consignee_name, consignee_address, consignee_gstin, buyer_address, buyer_gstin
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          consignee_name, consignee_address, consignee_gstin, buyer_address, buyer_gstin,
+          consignee_phone, buyer_phone
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id, title || 'Voice Session', isoDate, isoDate,
           customerName || '', invoiceDate || '', destination || '', dispatchedThrough || '', termsOfDelivery || '',
-          consigneeName || '', consigneeAddress || '', consigneeGstin || '', buyerAddress || '', buyerGstin || ''
+          consigneeName || '', consigneeAddress || '', consigneeGstin || '', buyerAddress || '', buyerGstin || '',
+          consigneePhone || '', buyerPhone || ''
         ]
       );
     } else {
@@ -53,7 +57,9 @@ export async function POST(
           consignee_address = ?,
           consignee_gstin = ?,
           buyer_address = ?,
-          buyer_gstin = ?
+          buyer_gstin = ?,
+          consignee_phone = ?,
+          buyer_phone = ?
          WHERE id = ?`,
         [
           title || session.session_title, 
@@ -68,6 +74,8 @@ export async function POST(
           consigneeGstin !== undefined ? consigneeGstin : session.consignee_gstin,
           buyerAddress !== undefined ? buyerAddress : session.buyer_address,
           buyerGstin !== undefined ? buyerGstin : session.buyer_gstin,
+          consigneePhone !== undefined ? consigneePhone : session.consignee_phone,
+          buyerPhone !== undefined ? buyerPhone : session.buyer_phone,
           id
         ]
       );

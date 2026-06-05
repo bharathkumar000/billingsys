@@ -121,9 +121,17 @@ function extractMetadata(text: string) {
     }
   }
 
+  // Handle "[name] is the name" pattern if no name matched yet
+  if (!rawName) {
+    const reverseMatch = text.match(/([a-zA-Z\u0C80-\u0CFF]{2,30})\s+is\s+(?:the\s+)?(?:customer\s+|buyer\s+|client\s+)?name/i);
+    if (reverseMatch) {
+      rawName = reverseMatch[1].trim();
+    }
+  }
+
   if (rawName) {
-    // Clean conversational/filler leading words like "ಇದು", "ಇದನ್ನ", "ಇದನ್ನು", "ಇದ್ನ", "ದಯವಿಟ್ಟು", "ಪ್ಲೀಸ್"
-    rawName = rawName.replace(/^(?:ಇದನ್ನ|ಇದು|ಇದನ್ನು|ಇದ್ನ|ದಯವಿಟ್ಟು|ಪ್ಲೀಸ್|ದಯಮಾಡಿ|please|this|bill|invoice|for|on)\s+/i, '').trim();
+    // Clean conversational/filler leading words
+    rawName = rawName.replace(/^(?:ಇದನ್ನ|ಇದು|ಇದನ್ನು|ಇದ್ನ|ದಯವಿಟ್ಟು|ಪ್ಲೀಸ್|ದಯಮಾಡಿ|please|this|bill|invoice|for|on|name\s+is|name\s+of|name|customer\s+name\s+is|customer\s+name|buyer\s+name\s+is|buyer\s+name|consignee\s+name\s+is|consignee\s+name|client\s+name\s+is|client\s+name|ಹೆಸರು|ಗ್ರಾಹಕರ\s+ಹೆಸರು|ಹೆಸರಿಗೆ|ಗ್ರಾಹಕರು|is)\s+/i, '').trim();
     // Clean trailing Kannada filler/possessive words like "ತನ್ನ", "ತನ್ನದೇ", "ತನ್ನದಾದ", "ನನ್ನ", "ನನ್ನದೇ"
     rawName = rawName.replace(/\s+(?:ತನ್ನ|ತನ್ನದೇ|ತನ್ನದಾದ|ನನ್ನ|ನನ್ನದೇ)$/i, '').trim();
     
@@ -142,14 +150,20 @@ function extractMetadata(text: string) {
   // 2. Invoice Date
   metadata.invoiceDate = extractAndClean(/(?:dated|date is|date|ದಿನಾಂಕ)\s+([0-9a-zA-Z\s\u0C80-\u0CFF]+)/i);
 
-  // 3. Destination
-  const rawDest = extractAndClean(/(?:destination is|destination|ship to|to|ತಲುಪುವ ಸ್ಥಳ|ಸ್ಥಳ)\s+([a-zA-Z0-9\u0C80-\u0CFF\s]+)/i);
+  // 3. Destination (prevent "to" matching if preceded by "bill" or "ship", optionally match leading "to" after destination prefix keywords)
+  const rawDest = extractAndClean(/(?:destination is|destination|ship to|(?<!bill\s+|ship\s+)\bto\b|ತಲುಪುವ ಸ್ಥಳ|ಸ್ಥಳ)\s+(?:to\s+)?([a-zA-Z0-9\u0C80-\u0CFF\s]+)/i);
   if (rawDest) {
     const lowerCand = rawDest.toLowerCase();
     const isFoodKeyword = LOCAL_MENU_DATABASE.some(item => 
       item.keywords.some(kw => lowerCand.includes(kw) || kw.includes(lowerCand))
     );
-    if (!isFoodKeyword && lowerCand !== 'the' && lowerCand !== 'a' && lowerCand !== 'customer' && lowerCand !== 'consignee') {
+    // Filter out name-related candidates
+    const isNameRelated = lowerCand.startsWith('name ') || 
+                         lowerCand === 'name' || 
+                         (metadata.customerName && lowerCand.includes(metadata.customerName.toLowerCase())) ||
+                         (metadata.consigneeName && lowerCand.includes(metadata.consigneeName.toLowerCase()));
+
+    if (!isFoodKeyword && !isNameRelated && lowerCand !== 'the' && lowerCand !== 'a' && lowerCand !== 'customer' && lowerCand !== 'consignee') {
       metadata.destination = rawDest;
     }
   }
@@ -415,9 +429,9 @@ Instructions:
 2. Standardize numerical counts to Arabic numerals.
 3. Map items to their bilingual representation in the database where available. Always output English name ('item_name_en') AND Kannada script equivalent ('item_name_kn').
 4. STRICT INSTRUCTION: Only add items that exist in the provided Menu Database. If the spoken dish is NOT found in the database, DO NOT add it to the items array.
-5. If a customer name or buyer name is specified (e.g. "in the name of Bharath" or "customer name is Bharath" or "ಹೆಸರು ಭರತ್"), extract it in 'customer_name'.
+5. If a customer name or buyer name is specified (e.g. "in the name of Bharath", "customer name is Bharath", "Bharath is the name", "bill to name Bharath", or "ಹೆಸರು ಭರತ್"), extract only the name itself (e.g. "Bharath") in 'customer_name'. Do not include filler words like "name" or "is".
 6. If a date is specified (e.g. "dated 1st June" or "ದಿನಾಂಕ ಜೂನ್ 1"), extract it in 'invoice_date'.
-7. If a shipping destination is specified (e.g. "destination Kundapura" or "to Kundapura" or "ಸ್ಥಳ ಕುಂದಾಪುರ"), extract it in 'destination'.
+7. If a shipping destination is specified (e.g. "destination Kundapura", "to Kundapura", or "ಸ್ಥಳ ಕುಂದಾಪುರ"), extract it in 'destination'. Ensure you do NOT extract names, name-related phrases, or customer name/consignee name as a destination.
 8. If a shipping mode/dispatcher is specified (e.g. "dispatched through road" or "by truck" or "ರವಾನೆ ರಸ್ತೆ ಮೂಲಕ"), extract it in 'dispatched_through'.
 9. If a buyer address is specified (e.g. "buyer address is MG Road" or "ಖರೀದಿದಾರರ ವಿಳಾಸ ಬೆಂಗಳೂರು"), extract it in 'buyer_address'.
 10. If a buyer GSTIN is specified (e.g. "buyer GSTIN is 29DAFPD7054C2ZD"), extract it in 'buyer_gstin'.

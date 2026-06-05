@@ -233,6 +233,8 @@ export default function VoiceBillingApp() {
   const [consigneeGstin, setConsigneeGstin] = useState('');
   const [buyerAddress, setBuyerAddress] = useState('');
   const [buyerGstin, setBuyerGstin] = useState('');
+  const [consigneePhone, setConsigneePhone] = useState('');
+  const [buyerPhone, setBuyerPhone] = useState('');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [terminalView, setTerminalView] = useState<'chat' | 'sessions'>('chat');
@@ -310,7 +312,7 @@ export default function VoiceBillingApp() {
   }, [chatLog]);
 
   // ===== VOICE MODAL SPEECH RECOGNITION =====
-  const startVoiceRecording = () => {
+  const startVoiceRecording = (overrideLang?: 'kn-IN' | 'en-IN') => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       triggerNotification('Speech recognition is not supported in this browser.');
@@ -325,7 +327,7 @@ export default function VoiceBillingApp() {
     const rec = new SpeechRecognition();
     rec.continuous = true;
     rec.interimResults = true;
-    rec.lang = 'kn-IN';
+    rec.lang = overrideLang || listenerLanguage;
 
     rec.onstart = () => {
       setIsVoiceRecording(true);
@@ -344,14 +346,6 @@ export default function VoiceBillingApp() {
         setVoiceTranscript(prev => (prev + ' ' + final).trim());
       }
       setVoiceInterim(interim);
-
-      const currentText = ((final ? voiceTranscript + ' ' + final : voiceTranscript) + ' ' + interim).trim();
-      const hasKannada = /[\u0C80-\u0CFF]/.test(currentText);
-      if (hasKannada) {
-        setListenerLanguage('kn-IN');
-      } else {
-        setListenerLanguage('en-IN');
-      }
     };
     rec.onerror = (err: any) => {
       console.warn('Voice Assistant Mic Error:', err);
@@ -447,6 +441,8 @@ export default function VoiceBillingApp() {
         setConsigneeGstin(data.session.consignee_gstin || '');
         setBuyerAddress(data.session.buyer_address || '');
         setBuyerGstin(data.session.buyer_gstin || '');
+        setConsigneePhone(data.session.consignee_phone || '');
+        setBuyerPhone(data.session.buyer_phone || '');
         setSidebarOpen(true);
         setTerminalView('chat');
         setStatusMessage('READY');
@@ -486,6 +482,8 @@ export default function VoiceBillingApp() {
         setConsigneeGstin('');
         setBuyerAddress('');
         setBuyerGstin('');
+        setConsigneePhone('');
+        setBuyerPhone('');
         loadSessions(false);
         setStatusMessage('READY');
         triggerNotification('New invoice session created');
@@ -527,6 +525,8 @@ export default function VoiceBillingApp() {
         let extractedConsGstin = consigneeGstin;
         let extractedBuyAddr = buyerAddress;
         let extractedBuyGstin = buyerGstin;
+        let extractedConsPhone = consigneePhone;
+        let extractedBuyPhone = buyerPhone;
 
         if (data.extractedData.customer_name) {
           setCustomerName(data.extractedData.customer_name);
@@ -577,6 +577,16 @@ export default function VoiceBillingApp() {
           extractedBuyGstin = data.extractedData.buyer_gstin;
           setSidebarOpen(true);
         }
+        if (data.extractedData.consignee_phone) {
+          setConsigneePhone(data.extractedData.consignee_phone);
+          extractedConsPhone = data.extractedData.consignee_phone;
+          setSidebarOpen(true);
+        }
+        if (data.extractedData.buyer_phone) {
+          setBuyerPhone(data.extractedData.buyer_phone);
+          extractedBuyPhone = data.extractedData.buyer_phone;
+          setSidebarOpen(true);
+        }
         const addedSummaries: string[] = [];
         const updatedMetadata: string[] = [];
 
@@ -625,6 +635,12 @@ export default function VoiceBillingApp() {
         if (data.extractedData.invoice_date) {
           updatedMetadata.push(`📅 Invoice Date: ${data.extractedData.invoice_date}`);
         }
+        if (data.extractedData.consignee_phone) {
+          updatedMetadata.push(`📞 Consignee Phone: ${data.extractedData.consignee_phone}`);
+        }
+        if (data.extractedData.buyer_phone) {
+          updatedMetadata.push(`📞 Buyer Phone: ${data.extractedData.buyer_phone}`);
+        }
 
         let responseMsg = '';
         if (addedSummaries.length > 0) {
@@ -653,6 +669,8 @@ export default function VoiceBillingApp() {
           consGstin: extractedConsGstin,
           buyAddr: extractedBuyAddr,
           buyGstin: extractedBuyGstin,
+          consPhone: extractedConsPhone,
+          buyPhone: extractedBuyPhone,
         });
         setStatusMessage('READY');
         triggerNotification('Items parsed and added to invoice');
@@ -683,6 +701,8 @@ export default function VoiceBillingApp() {
       consGstin?: string;
       buyAddr?: string;
       buyGstin?: string;
+      consPhone?: string;
+      buyPhone?: string;
     }
   ) => {
     try {
@@ -703,6 +723,8 @@ export default function VoiceBillingApp() {
           consigneeGstin: metaOverride?.consGstin !== undefined ? metaOverride.consGstin : consigneeGstin,
           buyerAddress: metaOverride?.buyAddr !== undefined ? metaOverride.buyAddr : buyerAddress,
           buyerGstin: metaOverride?.buyGstin !== undefined ? metaOverride.buyGstin : buyerGstin,
+          consigneePhone: metaOverride?.consPhone !== undefined ? metaOverride.consPhone : consigneePhone,
+          buyerPhone: metaOverride?.buyPhone !== undefined ? metaOverride.buyPhone : buyerPhone,
         }),
       });
       loadSessions(false);
@@ -803,7 +825,9 @@ export default function VoiceBillingApp() {
           consigneeAddress,
           consigneeGstin,
           buyerAddress,
-          buyerGstin
+          buyerGstin,
+          consigneePhone,
+          buyerPhone
         }),
       });
       if (!response.ok) throw new Error('PDF render error.');
@@ -848,7 +872,9 @@ export default function VoiceBillingApp() {
           consigneeAddress,
           consigneeGstin,
           buyerAddress,
-          buyerGstin
+          buyerGstin,
+          consigneePhone,
+          buyerPhone
         }),
       });
       if (!response.ok) throw new Error('PDF render error.');
@@ -885,7 +911,7 @@ export default function VoiceBillingApp() {
     }
   };
 
-  const handleToggleMic = () => {
+  const handleToggleMic = (overrideLang?: 'kn-IN' | 'en-IN') => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       triggerNotification('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
@@ -899,92 +925,79 @@ export default function VoiceBillingApp() {
       return;
     }
 
-    if (!recognitionRef.current) {
+    // Stop any existing instance just in case
+    if (recognitionRef.current) {
       try {
-        const rec = new SpeechRecognition();
-        rec.continuous = true;
-        rec.interimResults = true;
-        rec.lang = 'kn-IN';
-
-        rec.onstart = () => {
-          setIsRecording(true);
-          setStatusMessage('LISTENING');
-          voiceAccumulatedRef.current = '';
-        };
-        rec.onerror = (e: any) => {
-          console.warn('ASR Error:', e);
-          setIsRecording(false);
-          setStatusMessage('SPEECH_ERROR');
-          let msg = 'Microphone error. Check browser permissions.';
-          if (e.error === 'network') {
-            msg = "ASR network error. (Note: If using Brave, enable 'Google services for speech recognition' in brave://settings/privacy)";
-          } else if (e.error === 'not-allowed') {
-            msg = "Microphone access denied. Please allow microphone permissions in the browser address bar.";
-          }
-          triggerNotification(msg);
-        };
-        rec.onend = () => {
-          setIsRecording(false);
-          setStatusMessage(prev => prev === 'SPEECH_ERROR' ? 'SPEECH_ERROR' : 'READY');
-          if (silenceTimerRef.current) {
-            clearTimeout(silenceTimerRef.current);
-          }
-          const textToSend = voiceAccumulatedRef.current.trim();
-          if (textToSend) {
-            handleSendMessageRef.current?.(textToSend);
-            voiceAccumulatedRef.current = '';
-          }
-        };
-        rec.onresult = (e: any) => {
-          let interimTranscript = '';
-          let final = '';
-          for (let i = e.resultIndex; i < e.results.length; ++i) {
-            if (e.results[i].isFinal) {
-              final += e.results[i][0].transcript;
-            } else {
-              interimTranscript += e.results[i][0].transcript;
-            }
-          }
-          if (final) {
-            voiceAccumulatedRef.current = (voiceAccumulatedRef.current + ' ' + final).trim();
-            setTextInput(voiceAccumulatedRef.current);
-          } else if (interimTranscript) {
-            setTextInput((voiceAccumulatedRef.current + ' ' + interimTranscript).trim());
-          }
-
-          // Dynamic Toggle: Detect Kannada script
-          const currentText = (voiceAccumulatedRef.current + ' ' + interimTranscript).trim();
-          const hasKannada = /[\u0C80-\u0CFF]/.test(currentText);
-          if (hasKannada) {
-            setListenerLanguage('kn-IN');
-          } else {
-            setListenerLanguage('en-IN');
-          }
-
-          if (silenceTimerRef.current) {
-            clearTimeout(silenceTimerRef.current);
-          }
-          silenceTimerRef.current = setTimeout(() => {
-            rec.stop();
-          }, 3000); // 3 seconds of silence before auto-submitting
-        };
-
-        recognitionRef.current = rec;
-      } catch (err: any) {
-        console.warn('ASR Init Error:', err);
-        setStatusMessage('SPEECH_ERROR');
-        triggerNotification('Failed to initialize speech recognition: ' + err.message);
-        return;
-      }
+        recognitionRef.current.stop();
+      } catch (e) {}
     }
 
     try {
-      recognitionRef.current.lang = 'kn-IN';
-      recognitionRef.current.start();
+      const rec = new SpeechRecognition();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = overrideLang || listenerLanguage;
+
+      rec.onstart = () => {
+        setIsRecording(true);
+        setStatusMessage('LISTENING');
+        voiceAccumulatedRef.current = '';
+      };
+      rec.onerror = (e: any) => {
+        console.warn('ASR Error:', e);
+        setIsRecording(false);
+        setStatusMessage('SPEECH_ERROR');
+        let msg = 'Microphone error. Check browser permissions.';
+        if (e.error === 'network') {
+          msg = "ASR network error. (Note: If using Brave, enable 'Google services for speech recognition' in brave://settings/privacy)";
+        } else if (e.error === 'not-allowed') {
+          msg = "Microphone access denied. Please allow microphone permissions in the browser address bar.";
+        }
+        triggerNotification(msg);
+      };
+      rec.onend = () => {
+        setIsRecording(false);
+        setStatusMessage(prev => prev === 'SPEECH_ERROR' ? 'SPEECH_ERROR' : 'READY');
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+        }
+        const textToSend = voiceAccumulatedRef.current.trim();
+        if (textToSend) {
+          handleSendMessageRef.current?.(textToSend);
+          voiceAccumulatedRef.current = '';
+        }
+      };
+      rec.onresult = (e: any) => {
+        let interimTranscript = '';
+        let final = '';
+        for (let i = e.resultIndex; i < e.results.length; ++i) {
+          if (e.results[i].isFinal) {
+            final += e.results[i][0].transcript;
+          } else {
+            interimTranscript += e.results[i][0].transcript;
+          }
+        }
+        if (final) {
+          voiceAccumulatedRef.current = (voiceAccumulatedRef.current + ' ' + final).trim();
+          setTextInput(voiceAccumulatedRef.current);
+        } else if (interimTranscript) {
+          setTextInput((voiceAccumulatedRef.current + ' ' + interimTranscript).trim());
+        }
+
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+        }
+        silenceTimerRef.current = setTimeout(() => {
+          rec.stop();
+        }, 3000); // 3 seconds of silence before auto-submitting
+      };
+
+      recognitionRef.current = rec;
+      rec.start();
     } catch (err: any) {
-      console.warn('Mic start error:', err);
+      console.warn('ASR Init or Start Error:', err);
       setStatusMessage('SPEECH_ERROR');
-      triggerNotification('Failed to start microphone: ' + err.message);
+      triggerNotification('Failed to start speech recognition: ' + err.message);
     }
   };
 
@@ -1243,6 +1256,18 @@ export default function VoiceBillingApp() {
                   style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-primary)', padding: '6px 10px', borderRadius: 'var(--radius-sm)', fontSize: '12px' }}
                 />
               </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label className="font-mono" style={{ fontSize: '9px', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600 }}>Phone Number</label>
+                <input
+                  type="text"
+                  className="input-ghost"
+                  value={consigneePhone}
+                  onChange={(e) => setConsigneePhone(e.target.value)}
+                  onBlur={() => saveSessionState(activeSessionId, activeSessionTitle, items, chatLog)}
+                  placeholder="e.g. 9876543210"
+                  style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-primary)', padding: '6px 10px', borderRadius: 'var(--radius-sm)', fontSize: '12px' }}
+                />
+              </div>
             </div>
 
             {/* Buyer Section */}
@@ -1283,6 +1308,18 @@ export default function VoiceBillingApp() {
                   onChange={(e) => setBuyerGstin(e.target.value)}
                   onBlur={() => saveSessionState(activeSessionId, activeSessionTitle, items, chatLog)}
                   placeholder="e.g. 29DAFPD7054C2ZD"
+                  style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-primary)', padding: '6px 10px', borderRadius: 'var(--radius-sm)', fontSize: '12px' }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label className="font-mono" style={{ fontSize: '9px', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600 }}>Buyer Phone</label>
+                <input
+                  type="text"
+                  className="input-ghost"
+                  value={buyerPhone}
+                  onChange={(e) => setBuyerPhone(e.target.value)}
+                  onBlur={() => saveSessionState(activeSessionId, activeSessionTitle, items, chatLog)}
+                  placeholder="e.g. 9876543210"
                   style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-primary)', padding: '6px 10px', borderRadius: 'var(--radius-sm)', fontSize: '12px' }}
                 />
               </div>
@@ -2344,7 +2381,7 @@ export default function VoiceBillingApp() {
                 >
                   {/* Mic Button */}
                   <button
-                    onClick={handleToggleMic}
+                    onClick={() => handleToggleMic()}
                     className={isRecording ? 'animate-pulse-glow' : ''}
                     style={{
                       width: '40px',
@@ -2365,6 +2402,42 @@ export default function VoiceBillingApp() {
                     title={isRecording ? 'Stop recording' : 'Start recording'}
                   >
                     {isRecording ? <MicOff size={16} color="white" /> : <Mic size={16} color="white" />}
+                  </button>
+
+                  {/* Language Selector Button */}
+                  <button
+                    onClick={() => {
+                      const nextLang = listenerLanguage === 'en-IN' ? 'kn-IN' : 'en-IN';
+                      setListenerLanguage(nextLang);
+                      if (isRecording) {
+                        if (recognitionRef.current) {
+                          recognitionRef.current.stop();
+                        }
+                        setTimeout(() => {
+                          handleToggleMic(nextLang);
+                        }, 400);
+                      }
+                    }}
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      border: '1px solid var(--border-primary)',
+                      background: 'var(--bg-elevated)',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      fontFamily: 'monospace',
+                      flexShrink: 0,
+                      transition: 'all 0.2s',
+                    }}
+                    title={`Switch to ${listenerLanguage === 'en-IN' ? 'Kannada' : 'English'}`}
+                  >
+                    <span>{listenerLanguage === 'en-IN' ? 'EN' : 'KN'}</span>
                   </button>
 
                   {/* Text Input */}
@@ -2717,27 +2790,65 @@ export default function VoiceBillingApp() {
 
             {/* Bottom Actions Row */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-              {/* Mic Toggle Button */}
-              <button
-                onClick={isVoiceRecording ? stopVoiceRecording : startVoiceRecording}
-                className={isVoiceRecording ? 'animate-pulse-glow' : ''}
-                style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '50%',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s',
-                  background: isVoiceRecording ? 'var(--danger)' : 'var(--accent-primary)',
-                  boxShadow: isVoiceRecording ? '0 0 14px rgba(239,68,68,0.4)' : 'var(--shadow-glow)',
-                }}
-                title={isVoiceRecording ? 'Stop Recording' : 'Start Recording'}
-              >
-                {isVoiceRecording ? <MicOff size={18} color="white" /> : <Mic size={18} color="white" />}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* Mic Toggle Button */}
+                <button
+                  onClick={isVoiceRecording ? stopVoiceRecording : () => startVoiceRecording()}
+                  className={isVoiceRecording ? 'animate-pulse-glow' : ''}
+                  style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '50%',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s',
+                    background: isVoiceRecording ? 'var(--danger)' : 'var(--accent-primary)',
+                    boxShadow: isVoiceRecording ? '0 0 14px rgba(239,68,68,0.4)' : 'var(--shadow-glow)',
+                  }}
+                  title={isVoiceRecording ? 'Stop Recording' : 'Start Recording'}
+                >
+                  {isVoiceRecording ? <MicOff size={18} color="white" /> : <Mic size={18} color="white" />}
+                </button>
+
+                {/* Language Selector Button */}
+                <button
+                  onClick={() => {
+                    const nextLang = listenerLanguage === 'en-IN' ? 'kn-IN' : 'en-IN';
+                    setListenerLanguage(nextLang);
+                    if (isVoiceRecording) {
+                      if (localRecRef.current) {
+                        localRecRef.current.stop();
+                      }
+                      setTimeout(() => {
+                        startVoiceRecording(nextLang);
+                      }, 400);
+                    }
+                  }}
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    border: '1px solid var(--border-primary)',
+                    background: 'var(--bg-elevated)',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    fontFamily: 'monospace',
+                    flexShrink: 0,
+                    transition: 'all 0.2s',
+                  }}
+                  title={`Switch to ${listenerLanguage === 'en-IN' ? 'Kannada' : 'English'}`}
+                >
+                  <span>{listenerLanguage === 'en-IN' ? 'EN' : 'KN'}</span>
+                </button>
+              </div>
 
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button className="btn btn-ghost" onClick={handleVoiceModalClose}>

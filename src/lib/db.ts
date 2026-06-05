@@ -121,6 +121,8 @@ export async function initDb() {
   await addColumn('consignee_gstin');
   await addColumn('buyer_address');
   await addColumn('buyer_gstin');
+  await addColumn('consignee_phone');
+  await addColumn('buyer_phone');
 
   await dbRun(`
     CREATE TABLE IF NOT EXISTS items_ledger (

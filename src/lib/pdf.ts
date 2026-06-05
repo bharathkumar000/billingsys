@@ -94,7 +94,9 @@ export function compileBilingualInvoicePDF(
   consigneeAddress: string = '',
   consigneeGstin: string = '',
   buyerAddress: string = '',
-  buyerGstin: string = ''
+  buyerGstin: string = '',
+  consigneePhone: string = '',
+  buyerPhone: string = ''
 ) {
   // Use a custom layout format. A4 width: 595, height: 842. Margins: 30.
   const doc = new PDFDocument({ size: 'A4', margin: 30 });
@@ -140,7 +142,9 @@ export function compileBilingualInvoicePDF(
     consigneeAddress,
     consigneeGstin,
     buyerAddress,
-    buyerGstin
+    buyerGstin,
+    consigneePhone,
+    buyerPhone
   });
 
   // Render Page 2 (Kannada Invoice)
@@ -163,7 +167,9 @@ export function compileBilingualInvoicePDF(
     consigneeAddress,
     consigneeGstin,
     buyerAddress,
-    buyerGstin
+    buyerGstin,
+    consigneePhone,
+    buyerPhone
   });
 
   doc.end();
@@ -188,6 +194,8 @@ interface PageOptions {
   consigneeGstin: string;
   buyerAddress: string;
   buyerGstin: string;
+  consigneePhone: string;
+  buyerPhone: string;
 }
 
 function translateUnit(unit: string, lang: string): string {
@@ -269,24 +277,38 @@ function renderInvoicePage(doc: PDFKit.PDFDocument, items: BillingItem[], opt: P
     doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#000000').text('CONSIGNEE:-', 35, 107);
   }
   
-  const defaultConsigneeName = opt.lang === 'kn' ? 'ಶ್ರೀ ದುರ್ಗಾಪರಮೇಶ್ವರಿ ದೇವಸ್ಥಾನ ಕಟೀಲು' : 'Sri Durgaparameshwari Temple Kateel';
-  const defaultConsigneeAddress = opt.lang === 'kn' ? 'ಕಟೀಲು ಅಂಚೆ, ಮುಲ್ಕಿ ತಾಲೂಕು.\nದ.ಕ ಜಿಲ್ಲೆ - 574148' : 'Kateel Post, Mulki Taluk.\nD.K. District - 574148';
-  const defaultConsigneeGstin = '29DAFPD7054C2ZD';
-
-  const consName = opt.consigneeName || defaultConsigneeName;
-  const consAddr = opt.consigneeAddress || defaultConsigneeAddress;
-  const consGstin = opt.consigneeGstin || defaultConsigneeGstin;
+  const consName = opt.consigneeName || '';
+  const consAddr = opt.consigneeAddress || '';
+  const consGstin = opt.consigneeGstin || '';
 
   doc.fontSize(8).fillColor('#222222');
-  doc.font(getFontForText(consName, false, opt.fontExists)).text(consName, 35, 120, { lineGap: 1.2, width: 250, height: 12, ellipsis: true });
-  doc.font(getFontForText(consAddr, false, opt.fontExists)).text(consAddr, 35, 132, { lineGap: 1.2, width: 250, height: 24, ellipsis: true });
+  if (consName) {
+    doc.font(getFontForText(consName, false, opt.fontExists)).text(consName, 35, 120, { lineGap: 1.2, width: 250, height: 12, ellipsis: true });
+  }
+  if (consAddr) {
+    doc.font(getFontForText(consAddr, false, opt.fontExists)).text(consAddr, 35, 132, { lineGap: 1.2, width: 250, height: 24, ellipsis: true });
+  }
   
-  if (opt.lang === 'kn') {
-    doc.font(knFont).fontSize(8.5).text('ಜಿಎಸ್‌ಟಿಐಎನ್‌: ', 35, 158);
-    const labelW = doc.widthOfString('ಜಿಎಸ್‌ಟಿಐಎನ್‌: ');
-    doc.font('Helvetica').fontSize(8.5).text(consGstin, 35 + labelW, 158);
-  } else {
-    doc.font('Helvetica').fontSize(8.5).text(`GSTIN: ${consGstin}`, 35, 158);
+  let currentY = 158;
+  if (opt.consigneePhone) {
+    if (opt.lang === 'kn') {
+      doc.font(knFont).fontSize(8.5).text('ಮೊಬೈಲ್ ಸಂಖ್ಯೆ: ', 35, currentY);
+      const labelW = doc.widthOfString('ಮೊಬೈಲ್ ಸಂಖ್ಯೆ: ');
+      doc.font('Helvetica').text(opt.consigneePhone, 35 + labelW, currentY);
+    } else {
+      doc.font('Helvetica').text(`Mobile No: ${opt.consigneePhone}`, 35, currentY);
+    }
+    currentY += 8.5;
+  }
+  
+  if (consGstin) {
+    if (opt.lang === 'kn') {
+      doc.font(knFont).fontSize(8.5).text('ಜಿಎಸ್‌ಟಿಐಎನ್‌: ', 35, currentY);
+      const labelW = doc.widthOfString('ಜಿಎಸ್‌ಟಿಐಎನ್‌: ');
+      doc.font('Helvetica').text(consGstin, 35 + labelW, currentY);
+    } else {
+      doc.font('Helvetica').text(`GSTIN: ${consGstin}`, 35, currentY);
+    }
   }
 
   // Divider inside Consignee box for Buyer
@@ -300,12 +322,17 @@ function renderInvoicePage(doc: PDFKit.PDFDocument, items: BillingItem[], opt: P
   
   if (opt.customerName) {
     doc.font(getFontForText(opt.customerName, true, opt.fontExists)).fontSize(9).fillColor('#000000').text(opt.customerName, 35, 193);
+    
+    let buyerDetailY = 202;
     if (opt.buyerAddress) {
-      doc.font(getFontForText(opt.buyerAddress, false, opt.fontExists)).fontSize(7.5).fillColor('#444444').text(opt.buyerAddress, 35, 203, { lineGap: 1.2, width: 250, height: 18, ellipsis: true });
+      doc.font(getFontForText(opt.buyerAddress, false, opt.fontExists)).fontSize(7.5).fillColor('#444444').text(opt.buyerAddress, 35, buyerDetailY, { lineGap: 1.2, width: 250, height: 10, ellipsis: true });
+      buyerDetailY += 9;
     }
-  } else {
-    const fallbackBuyerText = opt.lang === 'kn' ? 'ಸ್ವೀಕರಿಸುವವರ ವಿವರಗಳೇ ಅನ್ವಯಿಸುತ್ತವೆ' : 'Same as Consignee Details';
-    doc.font(getFontForText(fallbackBuyerText, false, opt.fontExists)).fontSize(8).fillColor('#666666').text(fallbackBuyerText, 35, 196);
+    
+    if (opt.buyerPhone) {
+      const phoneText = opt.lang === 'kn' ? `ಮೊಬೈಲ್ ಸಂಖ್ಯೆ: ${opt.buyerPhone}` : `Mobile No: ${opt.buyerPhone}`;
+      doc.font(getFontForText(phoneText, false, opt.fontExists)).fontSize(7.5).fillColor('#444444').text(phoneText, 35, buyerDetailY);
+    }
   }
 
   // Right Column (Reference Grid)
@@ -339,8 +366,10 @@ function renderInvoicePage(doc: PDFKit.PDFDocument, items: BillingItem[], opt: P
     if (i === 0) { // Ref
       doc.font('Helvetica-Bold').fontSize(8.0).fillColor('#000000').text(opt.invoiceNumber, 302.5, y + 13);
     } else if (i === 1) { // Dated
-      const dateVal = opt.invoiceDate || opt.currentDate;
-      doc.font('Helvetica-Bold').fontSize(8.0).fillColor('#000000').text(dateVal, 436.25, y + 13);
+      const dateVal = opt.invoiceDate || '';
+      if (dateVal) {
+        doc.font('Helvetica-Bold').fontSize(8.0).fillColor('#000000').text(dateVal, 436.25, y + 13);
+      }
     } else if (i === 3) { // Dispatch & Destination
       if (opt.dispatchedThrough) {
         doc.font(getFontForText(opt.dispatchedThrough, true, opt.fontExists)).fontSize(8.0).fillColor('#000000').text(opt.dispatchedThrough, 302.5, y + 13);
@@ -354,8 +383,10 @@ function renderInvoicePage(doc: PDFKit.PDFDocument, items: BillingItem[], opt: P
   }
   // Terms of Delivery row
   doc.font(primaryFont).fontSize(7.5).fillColor('#555555').text(refLabels[4][0], 302.5, y + 4);
-  const termsText = opt.termsOfDelivery || (opt.lang === 'kn' ? 'ತಕ್ಷಣ ವಿತರಣೆ' : 'Immediate Delivery');
-  doc.font(getFontForText(termsText, true, opt.fontExists)).fontSize(8.0).fillColor('#000000').text(termsText, 302.5, y + 13);
+  const termsText = opt.termsOfDelivery || '';
+  if (termsText) {
+    doc.font(getFontForText(termsText, true, opt.fontExists)).fontSize(8.0).fillColor('#000000').text(termsText, 302.5, y + 13);
+  }
 
   // Table Grid Section
   const tableY = 220;
@@ -535,9 +566,11 @@ function renderInvoicePage(doc: PDFKit.PDFDocument, items: BillingItem[], opt: P
     doc.font(knFont).fontSize(7.5).fillColor('#555555').text("ಸಂಸ್ಥೆಯ ಜಿಎಸ್‌ಟಿಐಎನ್‌:", 35, bottomY + 16);
     doc.font('Helvetica').fontSize(7.5).fillColor('#000000').text('29AIVPN6346B1ZT', 125, bottomY + 16);
 
-    doc.font(knFont).fontSize(7.5).fillColor('#555555').text("ಖರೀದಿದಾರರ ಜಿಎಸ್‌ಟಿಐಎನ್‌:", 35, bottomY + 26);
-    const buyerGstinVal = opt.buyerGstin || '29DAFPD7054C2ZD';
-    doc.font('Helvetica').fontSize(7.5).fillColor('#000000').text(buyerGstinVal, 125, bottomY + 26);
+    const buyerGstinVal = opt.buyerGstin || '';
+    if (buyerGstinVal) {
+      doc.font(knFont).fontSize(7.5).fillColor('#555555').text("ಖರೀದಿದಾರರ ಜಿಎಸ್‌ಟಿಐಎನ್‌:", 35, bottomY + 26);
+      doc.font('Helvetica').fontSize(7.5).fillColor('#000000').text(buyerGstinVal, 125, bottomY + 26);
+    }
   } else {
     doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#555555').text("Company's PAN :", 35, bottomY + 6);
     doc.font('Helvetica').fontSize(7.5).fillColor('#000000').text('AIVPN6346B', 110, bottomY + 6);
@@ -545,9 +578,11 @@ function renderInvoicePage(doc: PDFKit.PDFDocument, items: BillingItem[], opt: P
     doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#555555').text("Company's GSTIN:", 35, bottomY + 16);
     doc.font('Helvetica').fontSize(7.5).fillColor('#000000').text('29AIVPN6346B1ZT', 110, bottomY + 16);
 
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#555555').text("Buyer's GSTIN :", 35, bottomY + 26);
-    const buyerGstinVal = opt.buyerGstin || '29DAFPD7054C2ZD';
-    doc.font('Helvetica').fontSize(7.5).fillColor('#000000').text(buyerGstinVal, 110, bottomY + 26);
+    const buyerGstinVal = opt.buyerGstin || '';
+    if (buyerGstinVal) {
+      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#555555').text("Buyer's GSTIN :", 35, bottomY + 26);
+      doc.font('Helvetica').fontSize(7.5).fillColor('#000000').text(buyerGstinVal, 110, bottomY + 26);
+    }
   }
 
   const declHeader = opt.lang === 'kn' ? 'ಘೋಷಣೆ:' : 'Declaration:';
