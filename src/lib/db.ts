@@ -40,6 +40,12 @@ export function getDb() {
       console.error('Error connecting to SQLite database:', err.message);
     } else {
       console.log('Connected to SQLite database at:', dbPath);
+      db.configure('busyTimeout', 10000);
+      db.run('PRAGMA journal_mode=WAL;', (pragmaErr: any) => {
+        if (pragmaErr) {
+          console.warn('Failed to set WAL mode:', pragmaErr.message);
+        }
+      });
     }
   });
 

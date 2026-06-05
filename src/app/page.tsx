@@ -397,7 +397,7 @@ export default function VoiceBillingApp() {
   // ===== API CALLS =====
   const loadSessions = async (initFirst = false) => {
     try {
-      const res = await fetch('/api/sessions');
+      const res = await fetch(`/api/sessions?_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       if (data.success && data.sessions) {
         setSessions(data.sessions);
@@ -418,18 +418,13 @@ export default function VoiceBillingApp() {
     setIsLoading(true);
     setStatusMessage('LOADING');
     try {
-      const res = await fetch(`/api/sessions/${id}`);
+      const res = await fetch(`/api/sessions/${id}?_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       if (data.success && data.session) {
         setActiveSessionId(data.session.id);
         setActiveSessionTitle(data.session.session_title);
         setItems(data.items || []);
-        setChatLog(
-          (data.history || []).map((h: any) => ({
-            role: h.sender_role,
-            text: h.raw_transcript,
-          }))
-        );
+        setChatLog(data.chatLog || []);
         // Load metadata fields
         setCustomerName(data.session.customer_name || '');
         setInvoiceDate(data.session.invoice_date || '');
