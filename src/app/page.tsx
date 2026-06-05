@@ -652,9 +652,6 @@ export default function VoiceBillingApp() {
         if (!responseMsg) {
           responseMsg = '✅ Invoice updated successfully.';
         }
-        if (data.note) {
-          responseMsg += ` (${data.note})`;
-        }
         const finalLogs: ChatMessage[] = [...updatedLog, { role: 'assistant', text: responseMsg }];
         setChatLog(finalLogs);
 
