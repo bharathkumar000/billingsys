@@ -11,7 +11,7 @@ interface BillingItem {
 // Complete local menu items for fallback parser lookup
 const LOCAL_MENU_DATABASE = [
   { name_en: 'Paneer Tikka', name_kn: 'ಪನೀರ್ ಟಿಕ್ಕಾ', price: 220, unit: 'Plate', keywords: ['paneer tikka', 'paneer tika', 'paneer teeka', 'paneertikka', 'ಟಿಕ್ಕಾ', 'ಟಿಕ್ಕ', 'ಪನೀರ್ ಟಿಕ್ಕಾ', 'ಪನ್ನೀರ್ ಟಿಕ್ಕಾ', 'ಪನೀರ್ ಟಿಕ್ಕ', 'ಪನ್ನೀರ್ ಟಿಕ್ಕ'] },
-  { name_en: 'Chicken 65', name_kn: 'ಚಿಕನ್ 65', price: 280, unit: 'Plate', keywords: ['chicken 65', 'chiken 65', 'ಚಿಕನ್ 65'] },
+  { name_en: 'Chicken 65', name_kn: 'ಚಿಕನ್ 65', price: 280, unit: 'Plate', keywords: ['chicken 65', 'chiken 65', 'ಚಿಕನ್ 65', 'ಚಿಕನ್‌ 65', 'ಚಿಕನ್ ಸಿಕ್ಸ್ಟಿ ಫೈವ್', 'ಚಿಕನ್ ಸಿಕ್ಸ್ಟಿಫೈವ್', 'ಚಿಕನ್ ಸಿಕ್ಸ್ಟ ಫೈವ್', 'ಚಿಕನ್ ಸಿಕ್ಸ್ಟಫೈವ್', 'chicken sixty five', 'chicken sixty-five'] },
   { name_en: 'Gobi Manchurian', name_kn: 'ಗೋಬಿ ಮಂಚೂರಿಯನ್', price: 180, unit: 'Plate', keywords: ['gobi manchurian', 'gobi', 'ಮಂಚೂರಿಯನ್', 'ಗೋಬಿ'] },
   { name_en: 'Veg Spring Roll', name_kn: 'ವೆಜ್ ಸ್ಪ್ರಿಂಗ್ ರೋಲ್', price: 160, unit: 'Plate', keywords: ['spring roll', 'veg roll', 'ಸ್ಪ್ರಿಂಗ್ ರೋಲ್'] },
   { name_en: 'Masala Papad', name_kn: 'ಮಸಾಲ ಪಾಪಡ್', price: 80, unit: 'Plate', keywords: ['masala papad', 'papad', 'ಪಾಪಡ್', 'ಮಸಾಲ ಪಾಪಡ್'] },
@@ -54,7 +54,9 @@ function extractMetadata(text: string) {
     consigneeName: null as string | null,
     consigneeAddress: null as string | null,
     consigneeGstin: null as string | null,
-    termsOfDelivery: null as string | null
+    termsOfDelivery: null as string | null,
+    consigneePhone: null as string | null,
+    buyerPhone: null as string | null
   };
 
   // Helper function to extract and truncate trailing keywords
@@ -182,6 +184,25 @@ function extractMetadata(text: string) {
   // 10. Terms of Delivery
   metadata.termsOfDelivery = extractAndClean(/(?:terms of delivery|terms of delivery is|delivery terms|delivery terms is|terms of delivery are|delivery terms are|ವಿತರಣಾ ನಿಯಮಗಳು)\s+([a-zA-Z0-9\u0C80-\u0CFF\s]+)/i);
 
+  // Helper to extract phone number (10-15 digits, ignoring spaces, hyphens, parentheses)
+  function extractPhone(regex: RegExp): string | null {
+    const match = text.match(regex);
+    if (!match) return null;
+    const clean = match[1].replace(/[^0-9]/g, '');
+    return clean || null;
+  }
+
+  // 11. Phone Numbers
+  metadata.consigneePhone = extractPhone(/(?:consignee phone|consignee mobile|consignee contact|consignee number|phone number is|phone is|mobile is|mobile number is|ಸ್ವೀಕರಿಸುವವರ ಮೊಬೈಲ್|ಸ್ವೀಕರಿಸುವವರ ಫೋನ್|ಫೋನ್ ಸಂಖ್ಯೆ|ಮೊಬೈಲ್ ಸಂಖ್ಯೆ)\s*([0-9\s-()]{10,18})/i);
+  metadata.buyerPhone = extractPhone(/(?:buyer phone|buyer mobile|buyer contact|buyer number|customer phone|customer mobile|customer contact|customer number|ಖರೀದಿದಾರರ ಮೊಬೈಲ್|ಖರೀದಿದಾರರ ಫೋನ್|ಗ್ರಾಹಕರ ಮೊಬೈಲ್|ಗ್ರಾಹಕರ ಫೋನ್)\s*([0-9\s-()]{10,18})/i);
+
+  if (!metadata.consigneePhone) {
+    const generalPhone = extractPhone(/(?:phone|mobile|contact|ಮೊಬೈಲ್|ಫೋನ್|ಸಂಪರ್ಕ ಸಂಖ್ಯೆ)\s*([0-9\s-()]{10,18})/i);
+    if (generalPhone) {
+      metadata.consigneePhone = generalPhone;
+    }
+  }
+
   // CROSS-FILL DEFAULT RULES FOR BILINGUAL INVOICES
   if (metadata.customerName && !metadata.consigneeName) {
     metadata.consigneeName = metadata.customerName;
@@ -239,16 +260,16 @@ function fallbackLocalParser(transcript: string, currentItems: BillingItem[]): B
   matches.sort((a, b) => a.index - b.index);
 
   const numberWordMap: Record<string, number> = {
-    ondu: 1, one: 1, "ಒಂದು": 1, "೧": 1,
-    eradu: 2, two: 2, "ಎರಡು": 2, "೨": 2,
-    mooru: 3, three: 3, "ಮೂರು": 3, "೩": 3,
-    naalku: 4, four: 4, "ನಾಲ್ಕು": 4, "೪": 4,
-    aidu: 5, five: 5, "ಐದು": 5, "೫": 5,
-    aaru: 6, six: 6, "ಆರು": 6, "೬": 6,
-    elu: 7, seven: 7, "ಏಳು": 7, "೭": 7,
-    entu: 8, eight: 8, "ಎಂಟು": 8, "೮": 8,
-    ombattu: 9, nine: 9, "ಒಂಬತ್ತು": 9, "೯": 9,
-    hattu: 10, ten: 10, "ಹತ್ತು": 10, "೧೦": 10
+    ondu: 1, one: 1, "ಒಂದು": 1, "ಒಂದ್": 1, "ಒನ್": 1, "ವನ್": 1, "೧": 1,
+    eradu: 2, two: 2, "ಎರಡು": 2, "ಎರಡ್": 2, "ಟು": 2, "ಟೂ": 2, "೨": 2,
+    mooru: 3, three: 3, "ಮೂರು": 3, "ಮೂರೂ": 3, "ತ್ರೀ": 3, "ತ್ರಿ": 3, "೩": 3,
+    naalku: 4, four: 4, "ನಾಲ್ಕು": 4, "ನಾಲ್ಕ್": 4, "ಫೋರ್": 4, "೪": 4,
+    aidu: 5, five: 5, "ಐದು": 5, "ಐದ್": 5, "ಫೈವ್": 5, "೫": 5,
+    aaru: 6, six: 6, "ಆರು": 6, "ಆರ್": 6, "ಸಿಕ್ಸ್": 6, "೬": 6,
+    elu: 7, seven: 7, "ಏಳು": 7, "ಏಳ್": 7, "ಸೆವೆನ್": 7, "೭": 7,
+    entu: 8, eight: 8, "ಎಂಟು": 8, "ಎಂಟ್": 8, "ಏಟ್": 8, "೮": 8,
+    ombattu: 9, nine: 9, "ಒಂಬತ್ತು": 9, "ಒಂಬತ್": 9, "ನೈನ್": 9, "೯": 9,
+    hattu: 10, ten: 10, "ಹತ್ತು": 10, "ಹತ್": 10, "ಟೆನ್": 10, "೧೦": 10
   };
 
   for (let i = 0; i < matches.length; i++) {
@@ -290,14 +311,30 @@ function fallbackLocalParser(transcript: string, currentItems: BillingItem[]): B
         const word = rightWords[w].trim();
         if (!word) continue;
 
+        let detectedQty = null;
         if (numberWordMap[word] !== undefined) {
-          qty = numberWordMap[word];
-          foundQty = true;
-          break;
+          detectedQty = numberWordMap[word];
+        } else {
+          const num = parseFloat(word);
+          if (!isNaN(num)) {
+            detectedQty = num;
+          }
         }
-        const num = parseFloat(word);
-        if (!isNaN(num)) {
-          qty = num;
+
+        if (detectedQty !== null) {
+          // If there is a next match, verify if this number belongs to the next match
+          if (i < matches.length - 1) {
+            const wordIdx = rightSub.indexOf(word);
+            const textAfterNum = rightSub.substring(wordIdx + word.length);
+            const separators = ['and', 'mattu', 'matte', 'muttte', 'mote', 'motte', 'with', 'ಮತ್ತು', 'ಮತ್ತೆ', ',', '+', '&', 'again', 'ಸೇರಿಸಿ', 'ಹಾಕಿ'];
+            const lowerAfter = textAfterNum.toLowerCase();
+            const hasSeparator = separators.some(sep => lowerAfter.includes(sep)) || /[,，+&]/.test(lowerAfter);
+            if (!hasSeparator) {
+              // It belongs to the next match, skip it for this match!
+              continue;
+            }
+          }
+          qty = detectedQty;
           foundQty = true;
           break;
         }
@@ -322,40 +359,49 @@ function fallbackLocalParser(transcript: string, currentItems: BillingItem[]): B
 }
 
 export async function POST(req: Request) {
+  // Read the body ONCE before any try/catch so it's available in the fallback
+  let rawTranscript = '';
+  let items: BillingItem[] = [];
   try {
     const body = await req.json();
-    const { rawTranscript, items = [] } = body;
+    rawTranscript = body.rawTranscript || '';
+    items = body.items || [];
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
+  }
 
-    if (!rawTranscript) {
-      return NextResponse.json({ error: 'Missing transcript parameters.' }, { status: 400 });
-    }
+  if (!rawTranscript) {
+    return NextResponse.json({ error: 'Missing transcript parameters.' }, { status: 400 });
+  }
 
-    const meta = extractMetadata(rawTranscript);
-    const NVAPI_KEY = process.env.NVAPI_KEY;
-    const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
+  const meta = extractMetadata(rawTranscript);
+  const NVAPI_KEY = process.env.NVAPI_KEY;
+  const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 
-    if (!NVAPI_KEY || NVAPI_KEY.trim() === '') {
-      const updatedItems = fallbackLocalParser(rawTranscript, items);
-      return NextResponse.json({
-        success: true,
-        extractedData: { 
-          items: updatedItems,
-          customer_name: meta.customerName,
-          invoice_date: meta.invoiceDate,
-          destination: meta.destination,
-          dispatched_through: meta.dispatchedThrough,
-          buyer_address: meta.buyerAddress,
-          buyer_gstin: meta.buyerGstin,
-          consignee_name: meta.consigneeName,
-          consignee_address: meta.consigneeAddress,
-          consignee_gstin: meta.consigneeGstin,
-          terms_of_delivery: meta.termsOfDelivery
-        },
-        note: 'Processed via local offline parser fallback.'
-      });
-    }
+  if (!NVAPI_KEY || NVAPI_KEY.trim() === '') {
+    const updatedItems = fallbackLocalParser(rawTranscript, items);
+    return NextResponse.json({
+      success: true,
+      extractedData: { 
+        items: updatedItems,
+        customer_name: meta.customerName,
+        invoice_date: meta.invoiceDate,
+        destination: meta.destination,
+        dispatched_through: meta.dispatchedThrough,
+        buyer_address: meta.buyerAddress,
+        buyer_gstin: meta.buyerGstin,
+        consignee_name: meta.consigneeName,
+        consignee_address: meta.consigneeAddress,
+        consignee_gstin: meta.consigneeGstin,
+        terms_of_delivery: meta.termsOfDelivery,
+        consignee_phone: meta.consigneePhone,
+        buyer_phone: meta.buyerPhone
+      },
+      note: 'Processed via local offline parser fallback.'
+    });
+  }
 
-    const systemPrompt = `You are a professional retail billing backend JSON extraction engine specialized in South Indian grocery and restaurant food semantics.
+  const systemPrompt = `You are a professional retail billing backend JSON extraction engine specialized in South Indian grocery and restaurant food semantics.
 Your core operational objective is parsing text commands (which can be spoken in English, Kannada, or mixed Code-Switched Kannada spoken phonetically in English script) to maintain and modify a billing invoice items ledger.
 
 Current invoice items list:
@@ -379,7 +425,8 @@ Instructions:
 12. If a consignee address/shipping address is specified (e.g. "shipping address is Udupi"), extract it in 'consignee_address'. If buyer address is specified but consignee address is not, cross-fill consignee address to buyer address (and vice versa).
 13. If a consignee GSTIN is specified (e.g. "consignee GST is 29DAFPD7054C2ZD"), extract it in 'consignee_gstin'.
 14. If terms of delivery are specified (e.g. "terms of delivery is hand delivery" or "ವಿತರಣಾ ನಿಯಮಗಳು"), extract it in 'terms_of_delivery'.
-15. Return strictly a single valid JSON object matching the specification schema below. Do not wrap the JSON output in markdown fences or include extra conversational explanation text.
+15. If a consignee phone or mobile number is specified (e.g. "consignee phone is 9876543210"), extract it in 'consignee_phone'. If a buyer phone or mobile is specified (e.g. "buyer phone is 9876543210"), extract it in 'buyer_phone'. If only a generic phone is mentioned, set 'consignee_phone' to it.
+16. Return strictly a single valid JSON object matching the specification schema below. Do not wrap the JSON output in markdown fences or include extra conversational explanation text.
 
 Target Schema Specification:
 {
@@ -393,6 +440,8 @@ Target Schema Specification:
   "consignee_address": "String or null if unidentified",
   "consignee_gstin": "String or null if unidentified",
   "terms_of_delivery": "String or null if unidentified",
+  "consignee_phone": "String or null if unidentified",
+  "buyer_phone": "String or null if unidentified",
   "items": [
     {
       "item_name_en": "Standardized English Name",
@@ -404,6 +453,7 @@ Target Schema Specification:
   ]
 }`;
 
+  try {
     const response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -440,10 +490,8 @@ Target Schema Specification:
 
   } catch (error: any) {
     console.error('NVIDIA NIM API transaction failure:', error.message);
-    const body = await req.json().catch(() => ({}));
-    const { rawTranscript, items = [] } = body;
-    const meta = extractMetadata(rawTranscript || '');
-    const updatedItems = fallbackLocalParser(rawTranscript || '', items);
+    // rawTranscript and items are already available from the outer scope
+    const updatedItems = fallbackLocalParser(rawTranscript, items);
     return NextResponse.json({
       success: true,
       extractedData: { 
@@ -457,7 +505,9 @@ Target Schema Specification:
         consignee_name: meta.consigneeName,
         consignee_address: meta.consigneeAddress,
         consignee_gstin: meta.consigneeGstin,
-        terms_of_delivery: meta.termsOfDelivery
+        terms_of_delivery: meta.termsOfDelivery,
+        consignee_phone: meta.consigneePhone,
+        buyer_phone: meta.buyerPhone
       },
       note: 'Processed via local fallback due to API error: ' + error.message
     });
